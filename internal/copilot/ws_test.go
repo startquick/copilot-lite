@@ -35,12 +35,25 @@ func mockCopilotServer(t *testing.T, handler func(conn *websocket.Conn)) *httpte
 // TestChatStreaming verifies that appendText events are assembled into StreamEvents.
 func TestChatStreaming(t *testing.T) {
 	ts := mockCopilotServer(t, func(conn *websocket.Conn) {
+		// Read the reportLocalConsents message (consent)
+		if _, _, err := conn.ReadMessage(); err != nil {
+			t.Logf("expected consent message, got error: %v", err)
+			return
+		}
+		// Read the send message (chat request)
+		if _, _, err := conn.ReadMessage(); err != nil {
+			t.Logf("expected send message, got error: %v", err)
+			return
+		}
+
 		// Simulate Copilot: send appendText chunks then done
 		chunks := []string{"Hello", " World", "!"}
 		for _, chunk := range chunks {
 			msg := map[string]interface{}{"event": "appendText", "text": chunk}
 			data, _ := json.Marshal(msg)
-			_ = conn.WriteMessage(websocket.TextMessage, data)
+			if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
+				return
+			}
 		}
 		done := map[string]string{"event": "done", "messageId": "m1"}
 		data, _ := json.Marshal(done)

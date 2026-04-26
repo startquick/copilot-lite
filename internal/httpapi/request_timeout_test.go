@@ -14,8 +14,7 @@ import (
 
 func TestRouteTimeout(t *testing.T) {
 	cfg := &config.Config{
-		App:   config.AppConfig{RequestTimeout: 90},
-		Proxy: config.ProxyConfig{Timeout: 180},
+		App: config.AppConfig{RequestTimeout: 90},
 	}
 
 	tests := []struct {
@@ -24,8 +23,8 @@ func TestRouteTimeout(t *testing.T) {
 		path   string
 		want   time.Duration
 	}{
-		{name: "openai chat uses proxy.timeout", method: http.MethodPost, path: "/v1/chat/completions", want: 180 * time.Second},
-		{name: "anthropic messages uses proxy.timeout", method: http.MethodPost, path: "/v1/messages", want: 180 * time.Second},
+		{name: "openai chat uses app.request_timeout", method: http.MethodPost, path: "/v1/chat/completions", want: 90 * time.Second},
+		{name: "anthropic messages uses app.request_timeout", method: http.MethodPost, path: "/v1/messages", want: 90 * time.Second},
 		{name: "other POST uses app.request_timeout", method: http.MethodPost, path: "/admin/tokens/batch", want: 90 * time.Second},
 		{name: "GET uses app.request_timeout", method: http.MethodGet, path: "/v1/chat/completions", want: 90 * time.Second},
 	}
@@ -42,20 +41,21 @@ func TestRouteTimeout(t *testing.T) {
 
 func TestRouteTimeout_NilConfig(t *testing.T) {
 	got := routeTimeout(nil, http.MethodPost, "/v1/chat/completions")
-	if got != defaultRequestTimeout {
-		t.Fatalf("routeTimeout(nil) = %s, want %s", got, defaultRequestTimeout)
-	}
-}
-
-func TestRouteTimeout_ZeroProxyTimeout(t *testing.T) {
-	cfg := &config.Config{Proxy: config.ProxyConfig{Timeout: 0}}
-	got := routeTimeout(cfg, http.MethodPost, "/v1/chat/completions")
-	if got != defaultRequestTimeout {
-		t.Fatalf("routeTimeout(zero) = %s, want %s", got, defaultRequestTimeout)
+	if got != 300*time.Second {
+		t.Fatalf("routeTimeout(nil) for chat = %s, want 300s", got)
 	}
 }
 
 func TestRouteTimeout_ZeroRequestTimeout(t *testing.T) {
+	// Chat routes fall back to 300s when request_timeout is 0
+	cfg := &config.Config{App: config.AppConfig{RequestTimeout: 0}}
+	got := routeTimeout(cfg, http.MethodPost, "/v1/chat/completions")
+	if got != 300*time.Second {
+		t.Fatalf("routeTimeout(zero) = %s, want 300s", got)
+	}
+}
+
+func TestRouteTimeout_ZeroRequestTimeoutOther(t *testing.T) {
 	cfg := &config.Config{App: config.AppConfig{RequestTimeout: 0}}
 	got := routeTimeout(cfg, http.MethodGet, "/admin/tokens")
 	if got != defaultRequestTimeout {
@@ -65,8 +65,7 @@ func TestRouteTimeout_ZeroRequestTimeout(t *testing.T) {
 
 func TestRequestTimeoutMiddleware_UsesRouteSpecificDeadline(t *testing.T) {
 	cfg := &config.Config{
-		App:   config.AppConfig{RequestTimeout: 90},
-		Proxy: config.ProxyConfig{Timeout: 180},
+		App: config.AppConfig{RequestTimeout: 90},
 	}
 
 	handler := requestTimeoutMiddleware(cfg)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -83,8 +82,8 @@ func TestRequestTimeoutMiddleware_UsesRouteSpecificDeadline(t *testing.T) {
 		path string
 		want time.Duration
 	}{
-		{name: "openai chat route uses proxy.timeout", path: "/v1/chat/completions", want: 180 * time.Second},
-		{name: "anthropic messages route uses proxy.timeout", path: "/v1/messages", want: 180 * time.Second},
+		{name: "openai chat route uses app.request_timeout", path: "/v1/chat/completions", want: 90 * time.Second},
+		{name: "anthropic messages route uses app.request_timeout", path: "/v1/messages", want: 90 * time.Second},
 		{name: "default route uses app.request_timeout", path: "/admin/tokens", want: 90 * time.Second},
 	}
 
@@ -108,7 +107,7 @@ func TestRequestTimeoutMiddleware_UsesRouteSpecificDeadline(t *testing.T) {
 }
 
 func TestRequestTimeoutMiddleware_HotReload(t *testing.T) {
-	cfg := &config.Config{Proxy: config.ProxyConfig{Timeout: 120}}
+	cfg := &config.Config{App: config.AppConfig{RequestTimeout: 120}}
 	handler := requestTimeoutMiddleware(cfg)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		deadline, _ := r.Context().Deadline()
 		remaining := time.Until(deadline)
@@ -125,7 +124,7 @@ func TestRequestTimeoutMiddleware_HotReload(t *testing.T) {
 	}
 
 	// Hot-reload: change timeout to 600s
-	cfg.Proxy.Timeout = 600
+	cfg.App.RequestTimeout = 600
 
 	req = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
 	rr = httptest.NewRecorder()

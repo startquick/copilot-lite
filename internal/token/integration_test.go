@@ -2,9 +2,6 @@ package token_test
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -29,20 +26,12 @@ func setupIntegrationDB(t *testing.T) *gorm.DB {
 	return db
 }
 
+// TestIntegration_QuotaLifecycle verifies that consumption reduces quota
+// and is persisted to the database via the periodic flusher.
 func TestIntegration_QuotaLifecycle(t *testing.T) {
 	db := setupIntegrationDB(t)
 	cfg := &config.TokenConfig{FailThreshold: 3}
 	manager := token.NewTokenManager(cfg)
-
-	// Mock upstream API
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := token.RateLimitsResponse{
-			RemainingQueries:  50,
-			WindowSizeSeconds: 7200,
-		}
-		json.NewEncoder(w).Encode(resp)
-	}))
-	defer server.Close()
 
 	// Create token in DB
 	tok := &store.Token{
@@ -79,20 +68,15 @@ func TestIntegration_QuotaLifecycle(t *testing.T) {
 		}
 	})
 
-	t.Run("sync updates quota from API", func(t *testing.T) {
-		err := manager.SyncQuota(ctx, tok, server.URL)
+	t.Run("SyncQuota is no-op for Copilot", func(t *testing.T) {
+		// SyncQuota does nothing in CopilotPi — no upstream quota API
+		err := manager.SyncQuota(ctx, tok, "")
 		if err != nil {
-			t.Fatalf("sync failed: %v", err)
+			t.Errorf("SyncQuota should not error, got: %v", err)
 		}
-
-		// Wait for periodic flush
-		time.Sleep(100 * time.Millisecond)
-
-		// Verify persisted - read from DB to avoid race
-		var dbTok store.Token
-		db.First(&dbTok, tok.ID)
-		if dbTok.ChatQuota != 50 {
-			t.Errorf("expected DB quota=50, got %d", dbTok.ChatQuota)
+		// Quota unchanged
+		if tok.ChatQuota != 9 {
+			t.Errorf("SyncQuota should not change quota, got %d", tok.ChatQuota)
 		}
 	})
 
@@ -104,16 +88,6 @@ func TestIntegration_CoolingRecovery(t *testing.T) {
 	db := setupIntegrationDB(t)
 	cfg := &config.TokenConfig{FailThreshold: 3}
 	manager := token.NewTokenManager(cfg)
-
-	// Mock upstream API returns quota
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := token.RateLimitsResponse{
-			RemainingQueries:  30,
-			WindowSizeSeconds: 7200,
-		}
-		json.NewEncoder(w).Encode(resp)
-	}))
-	defer server.Close()
 
 	// Create cooling token with expired CoolUntil
 	coolUntil := time.Now().Add(-1 * time.Minute)
@@ -127,8 +101,8 @@ func TestIntegration_CoolingRecovery(t *testing.T) {
 	db.Create(tok)
 	manager.AddToken(tok)
 
-	// Start scheduler and persister
-	scheduler := token.NewScheduler(manager, &config.TokenConfig{QuotaRecoveryMode: token.RecoveryModeUpstream}, server.URL)
+	// Start scheduler (RecoveryModeAuto — no upstream API needed) and persister
+	scheduler := token.NewScheduler(manager, &config.TokenConfig{QuotaRecoveryMode: token.RecoveryModeAuto}, "")
 	persister := token.NewPersister(manager, db)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -148,25 +122,12 @@ func TestIntegration_CoolingRecovery(t *testing.T) {
 	if dbTok.Status != string(token.StatusActive) {
 		t.Errorf("expected DB status=active, got %s", dbTok.Status)
 	}
-	if dbTok.ChatQuota != 30 {
-		t.Errorf("expected DB quota=30, got %d", dbTok.ChatQuota)
-	}
 }
 
 func TestIntegration_FullCycle(t *testing.T) {
 	db := setupIntegrationDB(t)
 	cfg := &config.TokenConfig{FailThreshold: 3}
 	manager := token.NewTokenManager(cfg)
-
-	// Mock upstream API
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := token.RateLimitsResponse{
-			RemainingQueries:  100,
-			WindowSizeSeconds: 7200,
-		}
-		json.NewEncoder(w).Encode(resp)
-	}))
-	defer server.Close()
 
 	// Create multiple tokens
 	for i := 0; i < 5; i++ {
@@ -181,7 +142,7 @@ func TestIntegration_FullCycle(t *testing.T) {
 	}
 
 	// Start components
-	scheduler := token.NewScheduler(manager, &config.TokenConfig{QuotaRecoveryMode: token.RecoveryModeUpstream}, server.URL)
+	scheduler := token.NewScheduler(manager, &config.TokenConfig{QuotaRecoveryMode: token.RecoveryModeAuto}, "")
 	persister := token.NewPersister(manager, db)
 
 	ctx, cancel := context.WithCancel(context.Background())

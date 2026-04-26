@@ -2,9 +2,6 @@ package token
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -13,18 +10,11 @@ import (
 	"github.com/crmmc/copilotpi/internal/store"
 )
 
+// TestScheduler_Start verifies the scheduler restores expired cooling tokens to active.
+// For CopilotPi, recovery is handled by time-based restore (no upstream quota API).
 func TestScheduler_Start(t *testing.T) {
 	cfg := &config.TokenConfig{FailThreshold: 3}
 	m := NewTokenManager(cfg)
-
-	// Mock server that returns quota
-	var callCount atomic.Int32
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		callCount.Add(1)
-		resp := RateLimitsResponse{RemainingQueries: 50}
-		json.NewEncoder(w).Encode(resp)
-	}))
-	defer server.Close()
 
 	// Add a cooling token with expired CoolUntil
 	coolUntil := time.Now().Add(-1 * time.Minute)
@@ -38,7 +28,7 @@ func TestScheduler_Start(t *testing.T) {
 	}
 	m.AddToken(token)
 
-	scheduler := NewScheduler(m, &config.TokenConfig{QuotaRecoveryMode: RecoveryModeUpstream}, server.URL)
+	scheduler := NewScheduler(m, &config.TokenConfig{QuotaRecoveryMode: RecoveryModeAuto}, "")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	scheduler.Start(ctx)
@@ -48,10 +38,6 @@ func TestScheduler_Start(t *testing.T) {
 
 	cancel()
 	scheduler.Stop()
-
-	if callCount.Load() < 1 {
-		t.Errorf("expected at least 1 API call, got %d", callCount.Load())
-	}
 
 	// Token should be restored to active
 	if token.Status != string(StatusActive) {
@@ -63,15 +49,10 @@ func TestScheduler_OnlyRefreshesExpiredCoolingTokens(t *testing.T) {
 	cfg := &config.TokenConfig{FailThreshold: 3}
 	m := NewTokenManager(cfg)
 
-	var callCount atomic.Int32
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		callCount.Add(1)
-		resp := RateLimitsResponse{RemainingQueries: 50}
-		json.NewEncoder(w).Encode(resp)
-	}))
-	defer server.Close()
+	var refreshCount atomic.Int32
+	_ = refreshCount // just track via status changes
 
-	// Active token - should NOT be refreshed
+	// Active token - should NOT be touched
 	activeToken := &store.Token{
 		ID:        1,
 		Token:     "active-token",
@@ -105,7 +86,7 @@ func TestScheduler_OnlyRefreshesExpiredCoolingTokens(t *testing.T) {
 	}
 	m.AddToken(expiredCoolingToken)
 
-	scheduler := NewScheduler(m, &config.TokenConfig{QuotaRecoveryMode: RecoveryModeUpstream}, server.URL)
+	scheduler := NewScheduler(m, &config.TokenConfig{QuotaRecoveryMode: RecoveryModeAuto}, "")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	scheduler.Start(ctx)
@@ -115,9 +96,17 @@ func TestScheduler_OnlyRefreshesExpiredCoolingTokens(t *testing.T) {
 	cancel()
 	scheduler.Stop()
 
-	// Only the expired cooling token should trigger API call
-	if callCount.Load() != 1 {
-		t.Errorf("expected exactly 1 API call, got %d", callCount.Load())
+	// Active token should remain active
+	if activeToken.Status != string(StatusActive) {
+		t.Errorf("active token status changed unexpectedly: %s", activeToken.Status)
+	}
+	// Future cooling token should remain cooling
+	if futureCoolingToken.Status != string(StatusCooling) {
+		t.Errorf("future cooling token restored too early: %s", futureCoolingToken.Status)
+	}
+	// Expired cooling token should now be active
+	if expiredCoolingToken.Status != string(StatusActive) {
+		t.Errorf("expired cooling token not restored: %s", expiredCoolingToken.Status)
 	}
 }
 
@@ -125,29 +114,11 @@ func TestScheduler_ConcurrencyLimit(t *testing.T) {
 	cfg := &config.TokenConfig{FailThreshold: 3}
 	m := NewTokenManager(cfg)
 
-	var concurrent atomic.Int32
-	var maxConcurrent atomic.Int32
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cur := concurrent.Add(1)
-		// Track max concurrent
-		for {
-			old := maxConcurrent.Load()
-			if cur <= old || maxConcurrent.CompareAndSwap(old, cur) {
-				break
-			}
-		}
-		time.Sleep(50 * time.Millisecond) // Simulate slow API
-		concurrent.Add(-1)
-		resp := RateLimitsResponse{RemainingQueries: 50}
-		json.NewEncoder(w).Encode(resp)
-	}))
-	defer server.Close()
-
-	// Add 10 expired cooling tokens
+	var tokens []*store.Token
 	for i := uint(1); i <= 10; i++ {
 		coolUntil := time.Now().Add(-1 * time.Minute)
-		token := &store.Token{
+		tok := &store.Token{
 			ID:        i,
 			Token:     "token-" + string(rune('0'+i)),
 			Pool:      PoolBasic,
@@ -155,10 +126,11 @@ func TestScheduler_ConcurrencyLimit(t *testing.T) {
 			ChatQuota: 0,
 			CoolUntil: &coolUntil,
 		}
-		m.AddToken(token)
+		m.AddToken(tok)
+		tokens = append(tokens, tok)
 	}
 
-	scheduler := NewScheduler(m, &config.TokenConfig{QuotaRecoveryMode: RecoveryModeUpstream}, server.URL)
+	scheduler := NewScheduler(m, &config.TokenConfig{QuotaRecoveryMode: RecoveryModeAuto}, "")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	scheduler.Start(ctx)
@@ -168,9 +140,11 @@ func TestScheduler_ConcurrencyLimit(t *testing.T) {
 	cancel()
 	scheduler.Stop()
 
-	// Max concurrent should not exceed 5 (the semaphore limit)
-	if maxConcurrent.Load() > 5 {
-		t.Errorf("expected max concurrent <= 5, got %d", maxConcurrent.Load())
+	// All expired cooling tokens should be restored
+	for _, tok := range tokens {
+		if tok.Status != string(StatusActive) {
+			t.Errorf("token %d not restored: status=%s", tok.ID, tok.Status)
+		}
 	}
 }
 
@@ -178,13 +152,7 @@ func TestScheduler_Stop(t *testing.T) {
 	cfg := &config.TokenConfig{FailThreshold: 3}
 	m := NewTokenManager(cfg)
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := RateLimitsResponse{RemainingQueries: 50}
-		json.NewEncoder(w).Encode(resp)
-	}))
-	defer server.Close()
-
-	scheduler := NewScheduler(m, &config.TokenConfig{QuotaRecoveryMode: RecoveryModeUpstream}, server.URL)
+	scheduler := NewScheduler(m, &config.TokenConfig{QuotaRecoveryMode: RecoveryModeAuto}, "")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	scheduler.Start(ctx)

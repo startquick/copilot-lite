@@ -11,8 +11,8 @@ import (
 
 func testTokenConfig() *config.TokenConfig {
 	return &config.TokenConfig{
-		BasicModels: []string{"grok-2", "grok-2-mini"},
-		SuperModels: []string{"grok-3", "grok-3-mini"},
+		BasicModels: []string{"copilot-free", "copilot-basic"},
+		SuperModels: []string{"copilot-premium"},
 	}
 }
 
@@ -20,28 +20,28 @@ func TestNewModelRegistryFromConfig(t *testing.T) {
 	cfg := testTokenConfig()
 	registry := NewModelRegistryFromConfig(cfg)
 
-	// Should contain exactly the models from config
+	// Should contain exactly the models from config (2 basic + 1 super)
 	allModels := registry.All()
-	if len(allModels) != 4 {
-		t.Errorf("expected 4 models, got %d", len(allModels))
+	if len(allModels) != 3 {
+		t.Errorf("expected 3 models, got %d", len(allModels))
 	}
 
 	// Basic models should exist in the registry.
-	for _, m := range []string{"grok/grok-2", "grok/grok-2-mini"} {
+	for _, m := range []string{"copilot-free", "copilot-basic"} {
 		if _, ok := registry.models[m]; !ok {
 			t.Errorf("expected model %s in registry", m)
 		}
 	}
 
 	// Super models should exist in the registry.
-	for _, m := range []string{"grok/grok-3", "grok/grok-3-mini"} {
+	for _, m := range []string{"copilot-premium"} {
 		if _, ok := registry.models[m]; !ok {
 			t.Errorf("expected model %s in registry", m)
 		}
 	}
 
 	// Unknown model should not be in registry
-	if _, ok := registry.models["grok/not-a-model"]; ok {
+	if _, ok := registry.models["copilot-unknown"]; ok {
 		t.Error("expected unknown model to not be in registry")
 	}
 }
@@ -81,8 +81,8 @@ func TestHandleModels_ReturnsOpenAIFormat(t *testing.T) {
 		t.Errorf("expected object 'list', got %s", resp.Object)
 	}
 
-	if len(resp.Data) != 4 {
-		t.Errorf("expected 4 models, got %d", len(resp.Data))
+	if len(resp.Data) != 3 {
+		t.Errorf("expected 3 models, got %d", len(resp.Data))
 	}
 }
 
@@ -99,24 +99,24 @@ func TestHandleModels_ModelEntryFields(t *testing.T) {
 	var resp ModelsResponse
 	json.NewDecoder(rec.Body).Decode(&resp)
 
-	// Find grok-3 in response
+	// Find copilot-premium in response
 	var found *ModelEntry
 	for i := range resp.Data {
-		if resp.Data[i].ID == "grok/grok-3" {
+		if resp.Data[i].ID == "copilot-premium" {
 			found = &resp.Data[i]
 			break
 		}
 	}
 
 	if found == nil {
-		t.Fatal("grok/grok-3 not found in response")
+		t.Fatal("copilot-premium not found in response")
 	}
 
 	if found.Object != "model" {
 		t.Errorf("expected object 'model', got %s", found.Object)
 	}
-	if found.OwnedBy != "xai" {
-		t.Errorf("expected owned_by 'xai', got %s", found.OwnedBy)
+	if found.OwnedBy != "microsoft" {
+		t.Errorf("expected owned_by 'microsoft', got %s", found.OwnedBy)
 	}
 	if found.Created == 0 {
 		t.Error("expected non-zero created timestamp")
@@ -125,19 +125,19 @@ func TestHandleModels_ModelEntryFields(t *testing.T) {
 
 func TestNewModelRegistryFromConfig_StripsCostSuffix(t *testing.T) {
 	cfg := &config.TokenConfig{
-		BasicModels: []string{"grok-2", "grok-2-mini"},
-		SuperModels: []string{"grok-3-thinking#4", "grok-4-heavy#4", "grok-3"},
+		BasicModels: []string{"copilot-free", "copilot-basic"},
+		SuperModels: []string{"copilot-ultra#4", "copilot-premium#2", "copilot-premium"},
 	}
 	registry := NewModelRegistryFromConfig(cfg)
 
 	// "#N" should be stripped — lookup by clean name
-	for _, name := range []string{"grok/grok-3-thinking", "grok/grok-4-heavy", "grok/grok-3"} {
+	for _, name := range []string{"copilot-ultra", "copilot-premium"} {
 		if _, ok := registry.models[name]; !ok {
 			t.Errorf("expected model %s in registry (cost suffix stripped)", name)
 		}
 	}
 	// Raw entry with suffix should NOT exist
-	for _, raw := range []string{"grok/grok-3-thinking#4", "grok/grok-4-heavy#4", "grok-3-thinking#4"} {
+	for _, raw := range []string{"copilot-ultra#4", "copilot-premium#2"} {
 		if _, ok := registry.models[raw]; ok {
 			t.Errorf("model %s should not be in registry (cost suffix not stripped)", raw)
 		}

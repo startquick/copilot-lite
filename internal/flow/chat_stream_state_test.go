@@ -8,21 +8,20 @@ import (
 	"github.com/crmmc/copilotpi/internal/store"
 )
 
-func TestChatFlow_FilterTagsAcrossChunks(t *testing.T) {
+func TestChatFlow_TextPassthrough(t *testing.T) {
 	tokenSvc := &mockTokenService{
 		tokens: []*store.Token{{ID: 1, Token: "tok1", Pool: "basic"}},
 	}
 	client := &mockCopilotClient{
 		events: []copilot.StreamEvent{
-			{Text: "before<xaiarti"},
-			{Text: "fact>secret</xaiarti"},
-			{Text: "fact>after"},
+			{Text: "Hello"},
+			{Text: " World"},
+			{Text: "!"},
 		},
 	}
 	flow := NewChatFlow(tokenSvc, func(token string) copilot.Client { return client }, &ChatFlowConfig{
 		RetryConfig: DefaultRetryConfig(),
 		TokenConfig: testFlowTokenConfig(),
-		FilterTags:  []string{"xaiartifact"},
 	})
 
 	ch, err := flow.Complete(context.Background(), &ChatRequest{
@@ -37,8 +36,8 @@ func TestChatFlow_FilterTagsAcrossChunks(t *testing.T) {
 	for event := range ch {
 		content += event.Content
 	}
-	if content != "beforeafter" {
-		t.Fatalf("unexpected filtered content: %q", content)
+	if content != "Hello World!" {
+		t.Fatalf("unexpected content: %q", content)
 	}
 }
 

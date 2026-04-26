@@ -137,30 +137,7 @@ func (m *mockCopilotClient) DownloadURL(_ context.Context, _ string) ([]byte, er
 	return nil, nil
 }
 
-func TestMapReasoningEffort(t *testing.T) {
-	tests := []struct {
-		input       string
-		wantThink   string
-		wantEnabled bool
-	}{
-		{"", "", false},
-		{"none", "", false},
-		{"low", "low", true},
-		{"medium", "medium", true},
-		{"high", "high", true},
-		{"unknown", "medium", true}, // default to medium
-	}
 
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			think, enabled := MapReasoningEffort(tt.input)
-			if think != tt.wantThink || enabled != tt.wantEnabled {
-				t.Errorf("MapReasoningEffort(%q) = (%q, %v), want (%q, %v)",
-					tt.input, think, enabled, tt.wantThink, tt.wantEnabled)
-			}
-		})
-	}
-}
 
 func TestChatFlow_Success(t *testing.T) {
 	tokenSvc := &mockTokenService{

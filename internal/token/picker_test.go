@@ -10,9 +10,9 @@ import (
 // testTokenConfig returns a config fixture for picker tests.
 func testTokenConfig() *config.TokenConfig {
 	return &config.TokenConfig{
-		BasicModels:   []string{"grok-2", "grok-2-mini", "grok-2-imageGen"},
-		SuperModels:   []string{"grok-3", "grok-3-mini", "grok-3-reasoning", "grok-3-deepsearch", "grok-4"},
-		PreferredPool: "ssoSuper",
+		BasicModels:   []string{"copilot-free", "copilot-basic"},
+		SuperModels:   []string{"copilot-premium"},
+		PreferredPool: PoolSuper,
 		FailThreshold: 3,
 	}
 }
@@ -26,11 +26,9 @@ func TestGetPoolForModel_ConfigDriven(t *testing.T) {
 		wantPool string
 		wantOK   bool
 	}{
-		{"basic only model", "grok-2", PoolBasic, true},
-		{"basic only model mini", "grok-2-mini", PoolBasic, true},
-		{"super only model", "grok-3", PoolSuper, true},
-		{"super only model mini", "grok-3-mini", PoolSuper, true},
-		{"super only model grok-4", "grok-4", PoolSuper, true},
+		{"basic model", "copilot-free", PoolBasic, true},
+		{"basic model 2", "copilot-basic", PoolBasic, true},
+		{"super model", "copilot-premium", PoolSuper, true},
 		{"unknown model", "unknown-model", "", false},
 		{"empty model", "", "", false},
 	}
@@ -77,8 +75,8 @@ func TestPickForModel(t *testing.T) {
 	m.AddToken(basicToken)
 	m.AddToken(superToken)
 
-	t.Run("grok-2 picks from basic pool", func(t *testing.T) {
-		token, err := m.PickForModel("grok-2", cfg, CategoryChat)
+	t.Run("copilot-free picks from basic pool", func(t *testing.T) {
+		token, err := m.PickForModel("copilot-free", cfg, CategoryChat)
 		if err != nil {
 			t.Fatalf("PickForModel failed: %v", err)
 		}
@@ -87,8 +85,8 @@ func TestPickForModel(t *testing.T) {
 		}
 	})
 
-	t.Run("grok-3 picks from super pool", func(t *testing.T) {
-		token, err := m.PickForModel("grok-3", cfg, CategoryChat)
+	t.Run("copilot-premium picks from super pool", func(t *testing.T) {
+		token, err := m.PickForModel("copilot-premium", cfg, CategoryChat)
 		if err != nil {
 			t.Fatalf("PickForModel failed: %v", err)
 		}
@@ -114,7 +112,7 @@ func TestPickForModel_EmptyPool(t *testing.T) {
 	m.AddToken(basicToken)
 
 	t.Run("returns error when pool is empty and no fallback", func(t *testing.T) {
-		_, err := m.PickForModel("grok-3", cfg, CategoryChat) // grok-3 only in super pool, no fallback
+		_, err := m.PickForModel("copilot-premium", cfg, CategoryChat) // premium only in super pool
 		if err != ErrNoTokenAvailable {
 			t.Errorf("expected ErrNoTokenAvailable, got %v", err)
 		}
@@ -126,7 +124,7 @@ func TestPickForModel_Fallback(t *testing.T) {
 	cfg := &config.TokenConfig{
 		BasicModels:   []string{"shared-model"},
 		SuperModels:   []string{"shared-model"},
-		PreferredPool: "ssoSuper",
+		PreferredPool: PoolSuper,
 		FailThreshold: 3,
 	}
 	m := NewTokenManager(cfg)
@@ -149,7 +147,7 @@ func TestPickForModel_Fallback(t *testing.T) {
 	cfg2 := &config.TokenConfig{
 		BasicModels:   []string{"shared-model"},
 		SuperModels:   []string{"shared-model"},
-		PreferredPool: "ssoBasic",
+		PreferredPool: PoolBasic,
 		FailThreshold: 3,
 	}
 	m2 := NewTokenManager(cfg2)
@@ -169,30 +167,30 @@ func TestPickForModel_Fallback(t *testing.T) {
 
 func TestGetPoolForModel_WithCostSuffix(t *testing.T) {
 	cfg := &config.TokenConfig{
-		BasicModels:   []string{"grok-2", "grok-2-mini"},
-		SuperModels:   []string{"grok-3", "grok-4-heavy#4"},
-		PreferredPool: "ssoSuper",
+		BasicModels:   []string{"copilot-free", "copilot-basic"},
+		SuperModels:   []string{"copilot-premium", "copilot-ultra#4"},
+		PreferredPool: PoolSuper,
 	}
 
 	t.Run("model with cost suffix matches", func(t *testing.T) {
-		pool, ok := GetPoolForModel("grok-4-heavy", cfg)
+		pool, ok := GetPoolForModel("copilot-ultra", cfg)
 		if !ok || pool != PoolSuper {
-			t.Errorf("GetPoolForModel(grok-4-heavy) = (%q, %v), want (ssoSuper, true)", pool, ok)
+			t.Errorf("GetPoolForModel(copilot-ultra) = (%q, %v), want (%s, true)", pool, ok, PoolSuper)
 		}
 	})
 
 	t.Run("model without cost suffix still matches", func(t *testing.T) {
-		pool, ok := GetPoolForModel("grok-3", cfg)
+		pool, ok := GetPoolForModel("copilot-premium", cfg)
 		if !ok || pool != PoolSuper {
-			t.Errorf("GetPoolForModel(grok-3) = (%q, %v), want (ssoSuper, true)", pool, ok)
+			t.Errorf("GetPoolForModel(copilot-premium) = (%q, %v), want (%s, true)", pool, ok, PoolSuper)
 		}
 	})
 
 	t.Run("literal cost suffix does not match", func(t *testing.T) {
-		// Searching for "grok-4-heavy#4" as model name should NOT match
-		_, ok := GetPoolForModel("grok-4-heavy#4", cfg)
+		// Searching for "copilot-ultra#4" as model name should NOT match
+		_, ok := GetPoolForModel("copilot-ultra#4", cfg)
 		if ok {
-			t.Error("GetPoolForModel(grok-4-heavy#4) should not match")
+			t.Error("GetPoolForModel(copilot-ultra#4) should not match")
 		}
 	})
 }
