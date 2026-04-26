@@ -81,10 +81,16 @@ type localCallbackResult struct {
 	Err   error
 }
 
-// startLocalCallbackListener starts a temporary HTTP listener on localhost:<port>/auth/callback.
-// It shuts down automatically after the first code is received or after timeout (60s).
-// Returns the result channel; the caller should wait on it.
-func startLocalCallbackListener(port int, resultCh chan<- localCallbackResult) {
+// startLocalCallbackListener starts a temporary HTTP listener on a random localhost port.
+// It returns the actual port assigned and shuts down automatically after the first
+// code is received or after timeout (60s).
+func startLocalCallbackListener(resultCh chan<- localCallbackResult) (port int, err error) {
+	ln, err := net.Listen("tcp", ":0")
+	if err != nil {
+		return 0, fmt.Errorf("listen on random port: %w", err)
+	}
+	port = ln.Addr().(*net.TCPAddr).Port
+
 	mux := http.NewServeMux()
 	srv := &http.Server{Handler: mux}
 
@@ -111,19 +117,13 @@ func startLocalCallbackListener(port int, resultCh chan<- localCallbackResult) {
 		}
 
 		w.Header().Set("Content-Type", "text/html")
-		fmt.Fprintf(w, `<html><body>
+		fmt.Fprint(w, `<html><body>
 <h2>✅ Authentication Successful</h2>
 <p>You have been successfully authenticated. You may close this window and return to the admin dashboard.</p>
 </body></html>`)
 		done(localCallbackResult{Code: code, State: state})
 		go srv.Shutdown(context.Background()) //nolint:errcheck
 	})
-
-	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
-	if err != nil {
-		done(localCallbackResult{Err: fmt.Errorf("listen on port %d: %w", port, err)})
-		return
-	}
 
 	go func() {
 		_ = srv.Serve(ln)
@@ -135,12 +135,15 @@ func startLocalCallbackListener(port int, resultCh chan<- localCallbackResult) {
 		_ = srv.Shutdown(context.Background())
 		done(localCallbackResult{Err: fmt.Errorf("OAuth callback timed out after 60 seconds")})
 	}()
+
+	return port, nil
 }
+
 
 // ─── HTTP Handlers ────────────────────────────────────────────────────────────
 
 // handleOAuthStart returns GET /admin/auth/copilot/start — initiates the OAuth2 login flow.
-func handleOAuthStart(ts OAuthAdminStore, oauthRedirectPort int) http.HandlerFunc {
+func handleOAuthStart(ts OAuthAdminStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		idStr := r.URL.Query().Get("token_id")
 		tokenID, err := strconv.ParseUint(idStr, 10, 32)
@@ -161,7 +164,15 @@ func handleOAuthStart(ts OAuthAdminStore, oauthRedirectPort int) http.HandlerFun
 			return
 		}
 
-		redirectURI := fmt.Sprintf("http://localhost:%d/", oauthRedirectPort)
+		// Start local callback listener on a random port.
+		resultCh := make(chan localCallbackResult, 1)
+		actuaPort, err := startLocalCallbackListener(resultCh)
+		if err != nil {
+			WriteError(w, http.StatusInternalServerError, "server_error", "listener_error", "Failed to start callback listener: "+err.Error())
+			return
+		}
+
+		redirectURI := fmt.Sprintf("http://localhost:%d/", actuaPort)
 		authURL := copilot.GenerateAuthURL(redirectURI, pkce)
 
 		// Store PKCE session keyed by state.
@@ -172,10 +183,6 @@ func handleOAuthStart(ts OAuthAdminStore, oauthRedirectPort int) http.HandlerFun
 			RedirectURI:  redirectURI,
 			CreatedAt:    time.Now(),
 		})
-
-		// Start local callback listener in background; results go to background handler.
-		resultCh := make(chan localCallbackResult, 1)
-		startLocalCallbackListener(oauthRedirectPort, resultCh)
 
 		// Launch a goroutine to handle the incoming callback and exchange the code.
 		go handleLocalCallback(r.Context(), resultCh, ts)
@@ -189,6 +196,7 @@ func handleOAuthStart(ts OAuthAdminStore, oauthRedirectPort int) http.HandlerFun
 		})
 	}
 }
+
 
 // handleLocalCallback processes the callback result from the local listener.
 func handleLocalCallback(ctx context.Context, resultCh <-chan localCallbackResult, ts OAuthAdminStore) {
@@ -301,8 +309,8 @@ func exchangeAndSave(ctx context.Context, code, verifier, redirectURI string, to
 // ─── Route Registration ───────────────────────────────────────────────────────
 
 // registerOAuthRoutes registers the OAuth admin routes on an *already-authenticated* chi router group.
-func registerOAuthRoutes(r chi.Router, ts OAuthAdminStore, oauthRedirectPort int) {
-	r.Get("/auth/copilot/start", handleOAuthStart(ts, oauthRedirectPort))
+func registerOAuthRoutes(r chi.Router, ts OAuthAdminStore, _ int) {
+	r.Get("/auth/copilot/start", handleOAuthStart(ts))
 	r.Post("/auth/copilot/callback", handleOAuthCallback(ts))
 }
 
