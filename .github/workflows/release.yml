@@ -47,12 +47,12 @@ jobs:
           EXT=""
           if [ "${{ matrix.goos }}" = "windows" ]; then EXT=".exe"; fi
           go build -ldflags "-X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}" \
-            -o grokpi-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} ./cmd/grokpi
+            -o copilotpi-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} ./cmd/copilotpi
 
       - uses: actions/upload-artifact@v4
         with:
-          name: grokpi-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: grokpi-*
+          name: copilotpi-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: copilotpi-*
 
   docker:
     name: Docker Image
@@ -63,18 +63,18 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: grokpi-linux-amd64
+          name: copilotpi-linux-amd64
           path: dist/linux-amd64
 
       - uses: actions/download-artifact@v4
         with:
-          name: grokpi-linux-arm64
+          name: copilotpi-linux-arm64
           path: dist/linux-arm64
 
       - name: Prepare binaries
         run: |
-          chmod +x dist/linux-amd64/grokpi-linux-amd64
-          chmod +x dist/linux-arm64/grokpi-linux-arm64
+          chmod +x dist/linux-amd64/copilotpi-linux-amd64
+          chmod +x dist/linux-arm64/copilotpi-linux-arm64
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
@@ -118,4 +118,4 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          files: artifacts/grokpi-*
+          files: artifacts/copilotpi-*

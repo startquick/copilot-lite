@@ -6,13 +6,13 @@ LDFLAGS := -ldflags "-X main.version=$(VERSION) -X main.buildTime=$(BUILD_TIME)"
 
 # Go build
 build:
-	go build $(LDFLAGS) -o bin/copilotpi ./cmd/grokpi
+	go build $(LDFLAGS) -o bin/copilotpi ./cmd/copilotpi
 
 run: build
 	./bin/copilotpi
 
 dev:
-	go run $(LDFLAGS) ./cmd/grokpi
+	go run $(LDFLAGS) ./cmd/copilotpi
 
 test:
 	go test -race -v ./...

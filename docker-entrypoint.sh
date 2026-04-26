@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-CONFIG_PATH="${GROKPI_CONFIG_PATH:-/app/config.toml}"
+CONFIG_PATH="${COPILOTPI_CONFIG_PATH:-/app/config.toml}"
 DEFAULT_APP_KEY="QUICKstart012345+"
 
 if [ ! -f "$CONFIG_PATH" ]; then
@@ -16,4 +16,5 @@ if grep -Eq '^[[:space:]]*app_key[[:space:]]*=[[:space:]]*"'$DEFAULT_APP_KEY'"[[
   exit 1
 fi
 
-exec /usr/local/bin/grokpi "$@"
+exec /usr/local/bin/copilotpi "$@"
+
