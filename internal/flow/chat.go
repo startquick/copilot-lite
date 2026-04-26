@@ -1,0 +1,345 @@
+package flow
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+	"time"
+
+	"github.com/crmmc/copilotpi/internal/config"
+	"github.com/crmmc/copilotpi/internal/copilot"
+	"github.com/crmmc/copilotpi/internal/store"
+	tkn "github.com/crmmc/copilotpi/internal/token"
+)
+
+// ChatFlow orchestrates chat completion with retry logic.
+type ChatFlow struct {
+	tokenSvc       TokenServicer
+	clientFactory  CopilotClientFactory
+	cfg            *ChatFlowConfig
+	usageLog       UsageRecorder
+	apiKeyUsageInc func(ctx context.Context, apiKeyID uint)
+}
+
+// NewChatFlow creates a new chat flow orchestrator.
+func NewChatFlow(tokenSvc TokenServicer, clientFactory CopilotClientFactory, cfg *ChatFlowConfig) *ChatFlow {
+	if cfg == nil {
+		cfg = DefaultChatFlowConfig()
+	}
+	return &ChatFlow{
+		tokenSvc:      tokenSvc,
+		clientFactory: clientFactory,
+		cfg:           cfg,
+	}
+}
+
+// SetUsageRecorder sets the usage recorder for logging API usage.
+func (f *ChatFlow) SetUsageRecorder(ur UsageRecorder) {
+	f.usageLog = ur
+}
+
+// SetAPIKeyUsageInc sets the callback to increment API key daily usage on success.
+func (f *ChatFlow) SetAPIKeyUsageInc(fn func(ctx context.Context, apiKeyID uint)) {
+	f.apiKeyUsageInc = fn
+}
+
+// SetCFRefreshTrigger is a no-op stub kept for httpapi interface compatibility.
+// Copilot does not use FlareSolverr.
+func (f *ChatFlow) SetCFRefreshTrigger(_ func()) {}
+
+// Complete executes a chat completion with retry logic.
+// Returns a channel of StreamEvents. The channel is closed when done.
+func (f *ChatFlow) Complete(ctx context.Context, req *ChatRequest) (<-chan StreamEvent, error) {
+	tokenCfg := f.tokenConfig()
+	if tokenCfg == nil {
+		tokenCfg = &config.TokenConfig{}
+	}
+	pool, fallback, ok := tkn.GetPoolsForModel(req.Model, tokenCfg)
+	if !ok {
+		// Model not in any configured group -- return error via channel
+		outCh := make(chan StreamEvent, 1)
+		outCh <- StreamEvent{Error: tkn.ErrModelNotFound}
+		close(outCh)
+		return outCh, nil
+	}
+	slog.Debug("flow: chat complete start",
+		"model", req.Model, "pool", pool, "fallback", fallback,
+		"msg_count", len(req.Messages), "stream", req.Stream,
+		"has_tools", len(req.Tools) > 0)
+	outCh := make(chan StreamEvent, 64)
+
+	SafeGo("chat_execute_with_retry", func() {
+		f.executeWithRetry(ctx, req, pool, fallback, outCh)
+	})
+
+	return outCh, nil
+}
+
+func (f *ChatFlow) executeWithRetry(ctx context.Context, req *ChatRequest, pool, fallback string, outCh chan<- StreamEvent) {
+	defer close(outCh)
+
+	// Hot-reload: read config from provider if available
+	cfg := f.cfg.RetryConfig
+	if f.cfg.RetryConfigProvider != nil {
+		cfg = f.cfg.RetryConfigProvider()
+	}
+	budgetDeadline := retryBudgetDeadline(cfg)
+
+	apiKeyID := FlowAPIKeyIDFromContext(ctx)
+	var lastErr error
+	tokenRetries := 0
+	var currentToken *store.Token
+	var client copilot.Client
+	exclude := make(map[uint]struct{})
+
+	for attempt := 0; attempt < cfg.MaxTokens*cfg.PerTokenRetries; attempt++ {
+		if retryBudgetExceeded(budgetDeadline) {
+			slog.Debug("flow: retry budget exceeded", "attempt", attempt)
+			lastErr = ErrRetryBudgetExceeded
+			break
+		}
+		attemptStart := time.Now()
+		// Check context
+		if ctx.Err() != nil {
+			outCh <- StreamEvent{Error: ctx.Err()}
+			return
+		}
+
+		// Pick new token if needed
+		if currentToken == nil || tokenRetries >= cfg.PerTokenRetries {
+			tok, err := f.pickChatToken(pool, fallback, exclude)
+			if err != nil && len(exclude) > 0 {
+				exclude = make(map[uint]struct{})
+				tok, err = f.pickChatToken(pool, fallback, exclude)
+			}
+			if err != nil && fallback != "" {
+				slog.Debug("flow: no token available", "pool", pool, "error", err)
+				lastErr = err
+				continue
+			}
+			maskedTok := tok.Token
+			if len(maskedTok) > 16 {
+				maskedTok = maskedTok[:8] + "..." + maskedTok[len(maskedTok)-4:]
+			}
+			slog.Debug("flow: token picked",
+				"token_id", tok.ID, "token", maskedTok,
+				"pool", pool, "quota", tkn.GetQuota(tok, tkn.CategoryChat),
+				"priority", tok.Priority, "attempt", attempt)
+			currentToken = tok
+			tokenRetries = 0
+			client = f.clientFactory(tok.Token)
+		}
+
+		// Build copilot request
+		copilotReq, err := f.buildCopilotRequest(req)
+		if err != nil {
+			outCh <- StreamEvent{Error: err}
+			return
+		}
+
+		// Execute chat
+		eventCh, err := client.Chat(ctx, copilotReq)
+		if err != nil {
+			lastErr = err
+			slog.Debug("flow: chat execution error",
+				"attempt", attempt, "token_id", currentToken.ID,
+				"error", err, "token_retries", tokenRetries)
+			if resetErr := f.resetSessionIfNeeded(err, cfg, client); resetErr != nil {
+				outCh <- StreamEvent{Error: resetErr}
+				return
+			}
+			f.handleError(currentToken.ID, err, cfg)
+			tokenRetries++
+
+			if IsNonRecoverable(err) {
+				slog.Debug("flow: error not recoverable, giving up", "error", err)
+				outCh <- StreamEvent{Error: err}
+				return
+			}
+
+			// Record circuit failure for retryable errors
+			f.tokenSvc.MarkCircuitFailure(currentToken.ID)
+
+			// Force swap on ErrInvalidToken
+			if errors.Is(err, copilot.ErrInvalidToken) || ShouldSwapToken(err, cfg) {
+				exclude[currentToken.ID] = struct{}{}
+				slog.Debug("flow: forcing token swap", "token_id", currentToken.ID, "error", err)
+				currentToken = nil
+			}
+
+			// Backoff before retry
+			delay := BackoffWithJitter(attempt, cfg)
+			slog.Debug("flow: backing off before retry",
+				"attempt", attempt, "delay_ms", delay.Milliseconds())
+			if retryDelayExceedsBudget(budgetDeadline, delay) {
+				lastErr = ErrRetryBudgetExceeded
+				break
+			}
+			timer := time.NewTimer(delay)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				outCh <- StreamEvent{Error: ctx.Err()}
+				return
+			case <-timer.C:
+			}
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+			continue
+		}
+
+		// Stream events
+		success, usage, estimated, ttft, streamErr := f.streamEvents(ctx, eventCh, outCh, req.Tools)
+		if success {
+			// Estimate prompt tokens from request messages if not set by upstream
+			if usage != nil && usage.PromptTokens == 0 {
+				usage.PromptTokens = f.estimatePromptTokens(req)
+				usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+				estimated = true
+			}
+			f.tokenSvc.ReportSuccess(currentToken.ID)
+			f.tokenSvc.MarkCircuitSuccess(currentToken.ID)
+			// Deduct quota only on success
+			cost := tkn.CostForModel(req.Model, f.tokenConfig())
+			if _, err := f.tokenSvc.Consume(currentToken.ID, tkn.CategoryChat, cost); err != nil {
+				slog.Warn("flow: chat quota consume failed", "token_id", currentToken.ID, "error", err)
+			}
+			var tokIn, tokOut int
+			if usage != nil {
+				tokIn = usage.PromptTokens
+				tokOut = usage.CompletionTokens
+			}
+			f.recordUsage(apiKeyID, currentToken.ID, req.Model, "chat", 200, time.Since(attemptStart), ttft, tokIn, tokOut, estimated)
+			slog.Debug("flow: chat success",
+				"token_id", currentToken.ID, "model", req.Model,
+				"latency_ms", time.Since(attemptStart).Milliseconds(),
+				"tokens_in", tokIn, "tokens_out", tokOut)
+			// Increment API key daily usage on success
+			if f.apiKeyUsageInc != nil && apiKeyID > 0 {
+				f.apiKeyUsageInc(ctx, apiKeyID)
+			}
+			return
+		}
+
+		// Stream failed — capture error for potential final report
+		if streamErr != nil {
+			lastErr = streamErr
+			f.handleError(currentToken.ID, streamErr, cfg)
+		}
+		tokenRetries++
+		if tokenRetries >= cfg.PerTokenRetries || ShouldSwapToken(streamErr, cfg) {
+			if currentToken != nil {
+				exclude[currentToken.ID] = struct{}{}
+			}
+			currentToken = nil
+		}
+	}
+
+	// All retries exhausted — always send error to client
+	if lastErr == nil {
+		lastErr = errors.New("all retries exhausted")
+	}
+	outCh <- StreamEvent{Error: lastErr}
+}
+
+func (f *ChatFlow) tokenConfig() *config.TokenConfig {
+	if f.cfg == nil {
+		return nil
+	}
+	if f.cfg.TokenConfigProvider != nil {
+		return f.cfg.TokenConfigProvider()
+	}
+	return f.cfg.TokenConfig
+}
+
+func (f *ChatFlow) appConfig() *config.AppConfig {
+	if f.cfg == nil {
+		return nil
+	}
+	if f.cfg.AppConfigProvider != nil {
+		return f.cfg.AppConfigProvider()
+	}
+	return f.cfg.AppConfig
+}
+
+func (f *ChatFlow) filterTags() []string {
+	if f.cfg == nil {
+		return nil
+	}
+	if f.cfg.FilterTagsProvider != nil {
+		return f.cfg.FilterTagsProvider()
+	}
+	return nil
+}
+
+func (f *ChatFlow) pickChatToken(pool, fallback string, exclude map[uint]struct{}) (*store.Token, error) {
+	tok, err := f.tokenSvc.PickExcluding(pool, tkn.CategoryChat, exclude)
+	if err == nil {
+		return tok, nil
+	}
+	if fallback != "" {
+		slog.Debug("flow: primary pool exhausted, trying fallback",
+			"pool", pool, "fallback", fallback, "error", err)
+		return f.tokenSvc.PickExcluding(fallback, tkn.CategoryChat, exclude)
+	}
+	return nil, err
+}
+
+func (f *ChatFlow) handleError(tokenID uint, err error, cfg *RetryConfig) {
+	reason := truncateReason(err.Error())
+	if errors.Is(err, copilot.ErrInvalidToken) || errors.Is(err, copilot.ErrForbidden) {
+		slog.Debug("flow: marking token expired (auth error)", "token_id", tokenID)
+		f.tokenSvc.MarkExpired(tokenID, reason)
+		return
+	}
+	if isTransportError(err) {
+		return
+	}
+	if ShouldCoolToken(err, cfg) {
+		slog.Debug("flow: reporting rate limit", "token_id", tokenID, "error", err)
+		f.tokenSvc.ReportRateLimit(tokenID, reason)
+	} else {
+		slog.Debug("flow: reporting error", "token_id", tokenID, "error", err)
+		f.tokenSvc.ReportError(tokenID, reason)
+	}
+}
+
+// truncateReason truncates a reason string to 256 characters max.
+func truncateReason(s string) string {
+	if len(s) <= 256 {
+		return s
+	}
+	return s[:256]
+}
+
+func (f *ChatFlow) resetSessionIfNeeded(err error, cfg *RetryConfig, client copilot.Client) error {
+	if client == nil || !ShouldResetSession(err, cfg) {
+		return nil
+	}
+	slog.Debug("flow: resetting session due to error", "error", err)
+	if resetErr := client.ResetSession(); resetErr != nil {
+		slog.Warn("flow: session reset failed", "error", resetErr)
+		return nil
+	}
+	slog.Debug("flow: session reset successful")
+	return nil
+}
+
+func retryBudgetDeadline(cfg *RetryConfig) time.Time {
+	if cfg == nil || cfg.RetryBudget <= 0 {
+		return time.Time{}
+	}
+	return time.Now().Add(cfg.RetryBudget)
+}
+
+func retryBudgetExceeded(deadline time.Time) bool {
+	return !deadline.IsZero() && time.Now().After(deadline)
+}
+
+func retryDelayExceedsBudget(deadline time.Time, delay time.Duration) bool {
+	return !deadline.IsZero() && time.Now().Add(delay).After(deadline)
+}

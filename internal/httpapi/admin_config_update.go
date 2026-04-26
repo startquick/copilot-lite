@@ -1,0 +1,275 @@
+package httpapi
+
+import (
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"strconv"
+	"strings"
+
+	"github.com/crmmc/copilotpi/internal/config"
+	"github.com/crmmc/copilotpi/internal/store"
+	"github.com/crmmc/copilotpi/internal/token"
+)
+
+// handlePutConfig returns a handler that updates hot-reloadable config fields.
+// Changes are persisted to the database via ConfigStore (DB > config file).
+func handlePutConfig(cfg *config.Config, configStore *store.ConfigStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req ConfigUpdateRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			WriteError(w, 400, "invalid_request", "invalid_json",
+				"Invalid JSON in request body")
+			return
+		}
+
+		// Apply hot-reloadable updates
+		if req.App != nil {
+			// Skip masked placeholder — only update if user entered a real value
+			if req.App.AppKey != nil && *req.App.AppKey != maskedConfigSecret {
+				if *req.App.AppKey == "" {
+					WriteError(w, 400, "invalid_request", "invalid_value", "app_key cannot be empty")
+					return
+				}
+				cfg.App.AppKey = *req.App.AppKey
+			}
+			if req.App.RequestTimeout != nil {
+				cfg.App.RequestTimeout = *req.App.RequestTimeout
+			}
+			if req.App.Stream != nil {
+				cfg.App.Stream = *req.App.Stream
+			}
+			if req.App.FilterTags != nil {
+				cfg.App.FilterTags = filterEmptyStrings(*req.App.FilterTags)
+			}
+			if req.App.ReadHeaderTimeout != nil {
+				cfg.App.ReadHeaderTimeout = *req.App.ReadHeaderTimeout
+			}
+			if req.App.MaxHeaderBytes != nil {
+				cfg.App.MaxHeaderBytes = *req.App.MaxHeaderBytes
+			}
+			if req.App.BodyLimit != nil {
+				cfg.App.BodyLimit = *req.App.BodyLimit
+			}
+			if req.App.ChatBodyLimit != nil {
+				cfg.App.ChatBodyLimit = *req.App.ChatBodyLimit
+			}
+			if req.App.AdminMaxFails != nil {
+				cfg.App.AdminMaxFails = *req.App.AdminMaxFails
+			}
+			if req.App.AdminWindowSec != nil {
+				cfg.App.AdminWindowSec = *req.App.AdminWindowSec
+			}
+		}
+
+		if req.Retry != nil {
+			if req.Retry.MaxTokens != nil {
+				cfg.Retry.MaxTokens = *req.Retry.MaxTokens
+			}
+			if req.Retry.PerTokenRetries != nil {
+				cfg.Retry.PerTokenRetries = *req.Retry.PerTokenRetries
+			}
+			if req.Retry.ResetSessionStatusCodes != nil {
+				cfg.Retry.ResetSessionStatusCodes = *req.Retry.ResetSessionStatusCodes
+			}
+			if req.Retry.CoolingStatusCodes != nil {
+				cfg.Retry.CoolingStatusCodes = *req.Retry.CoolingStatusCodes
+			}
+			if req.Retry.RetryBackoffBase != nil {
+				cfg.Retry.RetryBackoffBase = *req.Retry.RetryBackoffBase
+			}
+			if req.Retry.RetryBackoffFactor != nil {
+				cfg.Retry.RetryBackoffFactor = *req.Retry.RetryBackoffFactor
+			}
+			if req.Retry.RetryBackoffMax != nil {
+				cfg.Retry.RetryBackoffMax = *req.Retry.RetryBackoffMax
+			}
+			if req.Retry.RetryBudget != nil {
+				cfg.Retry.RetryBudget = *req.Retry.RetryBudget
+			}
+		}
+
+		if req.Token != nil {
+			if req.Token.FailThreshold != nil {
+				cfg.Token.FailThreshold = *req.Token.FailThreshold
+			}
+			if req.Token.CoolCheckIntervalSec != nil {
+				cfg.Token.CoolCheckIntervalSec = *req.Token.CoolCheckIntervalSec
+			}
+			if req.Token.UsageFlushIntervalSec != nil {
+				cfg.Token.UsageFlushIntervalSec = *req.Token.UsageFlushIntervalSec
+			}
+			if req.Token.BasicModels != nil {
+				cfg.Token.BasicModels = filterEmptyStrings(*req.Token.BasicModels)
+			}
+			if req.Token.SuperModels != nil {
+				cfg.Token.SuperModels = filterEmptyStrings(*req.Token.SuperModels)
+			}
+			if req.Token.PreferredPool != nil {
+				cfg.Token.PreferredPool = *req.Token.PreferredPool
+			}
+			if req.Token.BasicCoolDurationMin != nil {
+				cfg.Token.BasicCoolDurationMin = *req.Token.BasicCoolDurationMin
+			}
+			if req.Token.SuperCoolDurationMin != nil {
+				cfg.Token.SuperCoolDurationMin = *req.Token.SuperCoolDurationMin
+			}
+			if req.Token.DefaultChatQuota != nil {
+				cfg.Token.DefaultChatQuota = *req.Token.DefaultChatQuota
+			}
+			if req.Token.QuotaRecoveryMode != nil {
+				cfg.Token.QuotaRecoveryMode = *req.Token.QuotaRecoveryMode
+			}
+			if req.Token.SelectionAlgorithm != nil {
+				if !token.ValidAlgorithm(*req.Token.SelectionAlgorithm) {
+					WriteError(w, 400, "invalid_request", "invalid_algorithm",
+						"Invalid selection algorithm. Must be one of: high_quota_first, random, round_robin")
+					return
+				}
+				cfg.Token.SelectionAlgorithm = *req.Token.SelectionAlgorithm
+			}
+		}
+
+		// Persist hot-reloadable fields to database
+		dbUpdates := make(map[string]string)
+		if req.App != nil {
+			if req.App.RequestTimeout != nil {
+				dbUpdates["app.request_timeout"] = fmt.Sprintf("%d", *req.App.RequestTimeout)
+			}
+			if req.App.AppKey != nil && *req.App.AppKey != maskedConfigSecret && *req.App.AppKey != "" {
+				dbUpdates["app.app_key"] = *req.App.AppKey
+			}
+			if req.App.Stream != nil {
+				dbUpdates["app.stream"] = fmt.Sprintf("%t", *req.App.Stream)
+			}
+			if req.App.FilterTags != nil {
+				dbUpdates["app.filter_tags"] = strings.Join(filterEmptyStrings(*req.App.FilterTags), ",")
+			}
+			if req.App.ReadHeaderTimeout != nil {
+				dbUpdates["app.read_header_timeout"] = fmt.Sprintf("%d", *req.App.ReadHeaderTimeout)
+			}
+			if req.App.MaxHeaderBytes != nil {
+				dbUpdates["app.max_header_bytes"] = fmt.Sprintf("%d", *req.App.MaxHeaderBytes)
+			}
+			if req.App.BodyLimit != nil {
+				dbUpdates["app.body_limit"] = fmt.Sprintf("%d", *req.App.BodyLimit)
+			}
+			if req.App.ChatBodyLimit != nil {
+				dbUpdates["app.chat_body_limit"] = fmt.Sprintf("%d", *req.App.ChatBodyLimit)
+			}
+			if req.App.AdminMaxFails != nil {
+				dbUpdates["app.admin_max_fails"] = fmt.Sprintf("%d", *req.App.AdminMaxFails)
+			}
+			if req.App.AdminWindowSec != nil {
+				dbUpdates["app.admin_window_sec"] = fmt.Sprintf("%d", *req.App.AdminWindowSec)
+			}
+		}
+		if req.Retry != nil {
+			if req.Retry.MaxTokens != nil {
+				dbUpdates["retry.max_tokens"] = fmt.Sprintf("%d", *req.Retry.MaxTokens)
+			}
+			if req.Retry.PerTokenRetries != nil {
+				dbUpdates["retry.per_token_retries"] = fmt.Sprintf("%d", *req.Retry.PerTokenRetries)
+			}
+			if req.Retry.ResetSessionStatusCodes != nil {
+				codes := make([]string, len(*req.Retry.ResetSessionStatusCodes))
+				for i, c := range *req.Retry.ResetSessionStatusCodes {
+					codes[i] = strconv.Itoa(c)
+				}
+				dbUpdates["retry.reset_session_status_codes"] = strings.Join(codes, ",")
+			}
+			if req.Retry.CoolingStatusCodes != nil {
+				codes := make([]string, len(*req.Retry.CoolingStatusCodes))
+				for i, c := range *req.Retry.CoolingStatusCodes {
+					codes[i] = strconv.Itoa(c)
+				}
+				dbUpdates["retry.cooling_status_codes"] = strings.Join(codes, ",")
+			}
+			if req.Retry.RetryBackoffBase != nil {
+				dbUpdates["retry.retry_backoff_base"] = fmt.Sprintf("%g", *req.Retry.RetryBackoffBase)
+			}
+			if req.Retry.RetryBackoffFactor != nil {
+				dbUpdates["retry.retry_backoff_factor"] = fmt.Sprintf("%g", *req.Retry.RetryBackoffFactor)
+			}
+			if req.Retry.RetryBackoffMax != nil {
+				dbUpdates["retry.retry_backoff_max"] = fmt.Sprintf("%g", *req.Retry.RetryBackoffMax)
+			}
+			if req.Retry.RetryBudget != nil {
+				dbUpdates["retry.retry_budget"] = fmt.Sprintf("%g", *req.Retry.RetryBudget)
+			}
+		}
+		if req.Token != nil {
+			if req.Token.FailThreshold != nil {
+				dbUpdates["token.fail_threshold"] = fmt.Sprintf("%d", *req.Token.FailThreshold)
+			}
+			if req.Token.CoolCheckIntervalSec != nil {
+				dbUpdates["token.cool_check_interval_sec"] = fmt.Sprintf("%d", *req.Token.CoolCheckIntervalSec)
+			}
+			if req.Token.UsageFlushIntervalSec != nil {
+				dbUpdates["token.usage_flush_interval_sec"] = fmt.Sprintf("%d", *req.Token.UsageFlushIntervalSec)
+			}
+			if req.Token.BasicModels != nil {
+				dbUpdates["token.basic_models"] = strings.Join(filterEmptyStrings(*req.Token.BasicModels), ",")
+			}
+			if req.Token.SuperModels != nil {
+				dbUpdates["token.super_models"] = strings.Join(filterEmptyStrings(*req.Token.SuperModels), ",")
+			}
+			if req.Token.PreferredPool != nil {
+				dbUpdates["token.preferred_pool"] = *req.Token.PreferredPool
+			}
+			if req.Token.BasicCoolDurationMin != nil {
+				dbUpdates["token.basic_cool_duration_min"] = fmt.Sprintf("%d", *req.Token.BasicCoolDurationMin)
+			}
+			if req.Token.SuperCoolDurationMin != nil {
+				dbUpdates["token.super_cool_duration_min"] = fmt.Sprintf("%d", *req.Token.SuperCoolDurationMin)
+			}
+			if req.Token.DefaultChatQuota != nil {
+				dbUpdates["token.default_chat_quota"] = fmt.Sprintf("%d", *req.Token.DefaultChatQuota)
+			}
+			if req.Token.QuotaRecoveryMode != nil {
+				dbUpdates["token.quota_recovery_mode"] = *req.Token.QuotaRecoveryMode
+			}
+			if req.Token.SelectionAlgorithm != nil {
+				dbUpdates["token.selection_algorithm"] = *req.Token.SelectionAlgorithm
+			}
+		}
+
+		if configStore != nil && len(dbUpdates) > 0 {
+			if err := configStore.SetMany(dbUpdates); err != nil {
+				slog.Error("failed to persist config to database", "error", err)
+				WriteError(w, 500, "server_error", "config_persist_failed", "Failed to persist config")
+				return
+			}
+		}
+
+		// Return updated config with masked secrets
+		resp := configToResponse(cfg)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}
+}
+
+func handlePutConfigRuntime(runtime *config.Runtime, configStore *store.ConfigStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		snapshot := runtime.Snapshot()
+		sc := &statusCapture{ResponseWriter: w}
+		handlePutConfig(snapshot, configStore).ServeHTTP(sc, r)
+		if sc.status == 0 || sc.status >= http.StatusBadRequest {
+			return
+		}
+		runtime.Store(snapshot)
+	}
+}
+
+// filterEmptyStrings filters empty strings and trims whitespace from a string slice.
+func filterEmptyStrings(s []string) []string {
+	result := make([]string, 0, len(s))
+	for _, v := range s {
+		v = strings.TrimSpace(v)
+		if v != "" {
+			result = append(result, v)
+		}
+	}
+	return result
+}

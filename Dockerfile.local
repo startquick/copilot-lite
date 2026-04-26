@@ -1,0 +1,41 @@
+# ─── Stage 1: Build ───────────────────────────────────────────────────────────
+FROM golang:1.24-alpine AS builder
+
+WORKDIR /src
+
+# Download dependencies first (layer cache-friendly)
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source and build
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags "-s -w" \
+    -o /out/grokpi \
+    ./cmd/grokpi
+
+# ─── Stage 2: Runtime ─────────────────────────────────────────────────────────
+FROM debian:bookworm-slim
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates tzdata curl && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN useradd -m -u 1000 grokpi
+WORKDIR /app
+
+COPY --from=builder /out/grokpi /usr/local/bin/grokpi
+COPY config.defaults.toml /app/config.defaults.toml
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+
+RUN chmod +x /usr/local/bin/grokpi /usr/local/bin/docker-entrypoint.sh && \
+    mkdir -p /app/data /app/logs && \
+    chown -R grokpi:grokpi /app
+
+USER grokpi
+
+VOLUME ["/app/data", "/app/logs"]
+EXPOSE 8080
+
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+CMD ["-config", "/app/config.toml"]

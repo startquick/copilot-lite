@@ -1,0 +1,70 @@
+# Binaries
+bin/
+/grokpi
+*.exe
+
+# Claude Code
+.claude/
+
+# Development docs (internal)
+CLAUDE.md
+.planning/
+bugs.md
+docs/design/
+docs/grok2api-callchain-diff.md
+docs/origin_error_handle.md
+docs/deploy-cliproxy.md
+poc/
+# scripts/ (unignored to allow pushing admin scripts)
+
+# Next.js (web/)
+web/.next/
+web/node_modules/
+web/out/
+web/tsconfig.tsbuildinfo
+
+# Database
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Config (user-specific)
+config.toml
+
+# Docker local overrides
+.env
+docker-compose.local.yml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test
+coverage.out
+*.test
+
+# Stale build artifacts
+internal/httpapi/static/
+
+# Temp
+tmp/
+*.tmp
+
+# Logs
+logs/
+
+# AI Assistant configs
+.opencode/
+.agent/
+openspec/
+AGENTS.md
+
+# Go
+.gocache/

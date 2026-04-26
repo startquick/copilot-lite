@@ -1,0 +1,1588 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CopilotPi Admin Dashboard</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round'%3E%3Cpolygon points='12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2'/%3E%3Cline x1='12' y1='22' x2='12' y2='15.5'/%3E%3Cpolyline points='22 8.5 12 15.5 2 8.5'/%3E%3Cpolyline points='2 15.5 12 8.5 22 15.5'/%3E%3Cline x1='12' y1='2' x2='12' y2='8.5'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+:root {
+  --bg-primary: #000000;
+  --bg-surface: #141414;
+  --bg-elevated: #1a1a1a;
+  --bg-hover: #1f1f1f;
+  --bg-input: #0a0a0a;
+
+  --border: #262626;
+  --border-hover: #333333;
+  --border-focus: #525252;
+
+  --text-primary: #ffffff;
+  --text-secondary: #a1a1a1;
+  --text-tertiary: #666666;
+
+  --accent-green: #22c55e;
+  --accent-red: #ef4444;
+  --accent-amber: #f59e0b;
+  --accent-blue: #3b82f6;
+  --accent-cyan: #06b6d4;
+
+  --btn-primary-bg: #ffffff;
+  --btn-primary-fg: #000000;
+  --btn-ghost-bg: transparent;
+  --btn-ghost-hover: #1f1f1f;
+
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+
+  --ease: 0.15s ease;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+  display: flex;
+}
+
+/* Typography Helpers */
+.text-xs { font-size: 12px; }
+.text-sm { font-size: 13px; }
+.text-base { font-size: 14px; }
+.text-lg { font-size: 16px; }
+.text-xl { font-size: 20px; }
+.text-2xl { font-size: 24px; }
+.text-muted { color: var(--text-secondary); }
+
+/* Layout */
+.app-layout {
+  display: flex;
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 240px;
+  background-color: var(--bg-input);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 24px 16px;
+  flex-shrink: 0;
+  transition: transform 0.3s ease;
+  z-index: 40;
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px 32px;
+  font-weight: 600;
+  font-size: 18px;
+  letter-spacing: -0.02em;
+}
+
+.sidebar-nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 14px;
+  transition: background var(--ease), color var(--ease);
+  cursor: pointer;
+}
+
+.nav-item:hover, .nav-item.active {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.nav-item svg { width: 18px; height: 18px; opacity: 0.8; }
+.sidebar-brand svg { width: 32px; height: 32px; flex-shrink: 0; opacity: 0.9; }
+.nav-item:hover svg, .nav-item.active svg { opacity: 1; }
+
+.sidebar-footer {
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Main Content */
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow-y: auto;
+  position: relative;
+}
+
+.page-container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 48px 32px 64px;
+  width: 100%;
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+.page-container.fade-out {
+  opacity: 0;
+}
+
+.page-header {
+  margin-bottom: 32px;
+}
+
+.page-header h1 {
+  margin: 0 0 8px 0;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.page-header p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+/* Login View specific */
+#loginView {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  width: 100%;
+  background-color: var(--bg-primary);
+  position: fixed;
+  inset: 0;
+  z-index: 100; /* above everything else */
+}
+
+/* Cards & Panels */
+.card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.card h2 {
+  margin: 0 0 6px 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.card p.desc {
+  margin: 0 0 20px 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+/* Stats */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.stat-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-label {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stat-value {
+  font-size: 32px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+  line-height: 1;
+  word-break: break-all;
+}
+
+.stat-desc {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+/* Buttons */
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  background-color: var(--btn-primary-bg);
+  color: var(--btn-primary-fg);
+  border: 1px solid transparent;
+  transition: all var(--ease);
+  outline: none;
+}
+
+button:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+button:active:not(:disabled) { transform: translateY(0); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+button.ghost {
+  background-color: var(--btn-ghost-bg);
+  color: var(--text-primary);
+  border-color: var(--border);
+}
+button.ghost:hover:not(:disabled) {
+  background-color: var(--btn-ghost-hover);
+  border-color: var(--border-hover);
+}
+
+button.danger {
+  background-color: #ef4444;
+  color: white;
+}
+button.danger:hover:not(:disabled) { background-color: #dc2626; }
+
+button.ghost.danger-text { color: var(--accent-red); }
+button.ghost.danger-text:hover:not(:disabled) { 
+  background-color: rgba(239, 68, 68, 0.1); 
+  border-color: rgba(239, 68, 68, 0.2); 
+}
+
+/* Forms & Inputs */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  align-items: flex-end;
+  margin-bottom: 20px;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+input, textarea, select {
+  background-color: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 14px;
+  padding: 10px 14px;
+  transition: border-color var(--ease);
+  width: 100%;
+  outline: none;
+}
+
+input:focus, textarea:focus, select:focus {
+  border-color: var(--border-focus);
+}
+
+textarea { min-height: 100px; resize: vertical; }
+
+code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background-color: var(--bg-input);
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+/* Tables */
+.table-wrap {
+  overflow: visible;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background-color: var(--bg-surface);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+th {
+  background-color: var(--bg-input);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+  font-size: 13px;
+}
+
+tr:last-child td { border-bottom: none; }
+tr:hover td { background-color: var(--bg-elevated); }
+
+/* Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  background-color: rgba(38, 38, 38, 0.5);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.badge.active, .badge.success { background-color: rgba(34, 197, 94, 0.1); border-color: rgba(34, 197, 94, 0.2); color: var(--accent-green); }
+.badge.disabled, .badge.expired, .badge.inactive, .badge.error { background-color: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+.badge.cooling, .badge.warn, .badge.warning { background-color: rgba(245, 158, 11, 0.1); border-color: rgba(245, 158, 11, 0.2); color: var(--accent-amber); }
+.badge.premium { background-color: rgba(6, 182, 212, 0.1); border-color: rgba(6, 182, 212, 0.2); color: var(--accent-cyan); }
+.badge.free { background-color: rgba(59, 130, 246, 0.1); border-color: rgba(59, 130, 246, 0.2); color: var(--accent-blue); }
+
+/* Quota Bar */
+.qwrap { min-width: 90px; }
+.qtxt { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: flex; justify-content: space-between; }
+.qbar { height: 4px; background-color: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; }
+.qfill { height: 100%; border-radius: 2px; transition: width 0.3s ease; }
+.qfill.hi { background-color: var(--accent-green); }
+.qfill.mid { background-color: var(--accent-amber); }
+.qfill.lo { background-color: var(--accent-red); }
+/* q-bar-* classes (used by qBar() JS helper) */
+.q-bar-wrapper { min-width: 90px; }
+.q-bar-text { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: flex; align-items: center; gap: 4px; }
+.q-bar-text .q-sep { color: var(--text-muted, rgba(255,255,255,0.3)); }
+.q-bar-bg { height: 4px; background-color: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; }
+.q-bar-fill { height: 100%; border-radius: 2px; transition: width 0.3s ease; }
+.q-bar-fill.good { background-color: var(--accent-green); }
+.q-bar-fill.warn { background-color: var(--accent-amber); }
+.q-bar-fill.danger { background-color: var(--accent-red); }
+
+/* Dropdowns */
+.dropdown { position: relative; display: inline-block; }
+.dropdown-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 4px;
+  min-width: 140px;
+  z-index: 50;
+  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5);
+  display: flex;
+  flex-direction: column;
+}
+.dropdown-menu button {
+  width: 100%;
+  justify-content: flex-start;
+  padding: 8px 12px;
+  background: transparent;
+  color: var(--text-primary);
+  border: none;
+  font-size: 13px;
+  border-radius: 8px;
+}
+.dropdown-menu button:hover { background-color: var(--bg-hover); }
+.dropdown-menu button.danger { color: var(--accent-red); }
+.dd-div { height: 1px; background-color: var(--border); margin: 4px 0; }
+
+/* Modal */
+.modal-ov {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0,0,0,0.6);
+  backdrop-filter: blur(4px);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.modal-ov.show { opacity: 1; pointer-events: all; }
+.modal {
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 24px 28px;
+  max-width: 460px;
+  width: 100%;
+  transform: translateY(10px) scale(0.98);
+  transition: transform 0.2s ease;
+  box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5);
+}
+.modal-ov.show .modal { transform: translateY(0) scale(1); }
+.modal h3 { margin: 0 0 8px 0; font-size: 18px; font-weight: 500; }
+.modal p.desc { color: var(--text-secondary); font-size: 14px; margin: 0 0 24px 0; }
+.modal-fields { display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px; }
+.modal-acts { display: flex; justify-content: flex-end; gap: 12px; }
+
+/* Toast */
+#toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-weight: 500;
+  font-size: 13px;
+  z-index: 1000;
+  transform: translateY(20px);
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.2s ease;
+  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#toast.show { transform: translateY(0); opacity: 1; }
+#toast.ok { border-left: 3px solid var(--accent-green); }
+#toast.err { border-left: 3px solid var(--accent-red); }
+
+/* Flash (Persistent) */
+#flash {
+  margin-bottom: 24px;
+  padding: 16px;
+  border-radius: 12px;
+}
+#flash.success { background-color: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.2); }
+#flash.warn { background-color: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.2); }
+#flash.error { background-color: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); }
+.fkey {
+  font-family: var(--font-mono); font-size: 13px;
+  background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px;
+  border: 1px solid var(--border); word-break: break-all; margin: 12px 0 8px;
+}
+
+/* Utils */
+.hidden { display: none !important; }
+.flex { display: flex; }
+.items-center { align-items: center; }
+.items-start { align-items: flex-start; }
+.justify-between { justify-content: space-between; }
+.gap-2 { gap: 8px; }
+.gap-4 { gap: 16px; }
+
+/* Spinner */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin {
+  display: inline-block; width: 14px; height: 14px;
+  border: 2px solid rgba(255,255,255,0.2);
+  border-top-color: #fff; border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed; left: 0; top: 0; bottom: 0; z-index: 100;
+    transform: translateX(-100%);
+  }
+  .sidebar.open { transform: translateX(0); }
+  .page-container { padding: 32px 20px 64px; }
+  .form-grid { grid-template-columns: 1fr; }
+}
+
+  </style>
+</head>
+<body>
+<!-- Toast -->
+<div id="toast" role="status" aria-live="polite"></div>
+
+<!-- Modal -->
+<div id="modalOv" class="modal-ov hidden" role="dialog" aria-modal="true">
+  <div class="modal">
+    <h3 id="mTitle">Confirm</h3>
+    <p class="desc" id="mMsg"></p>
+    <div class="modal-fields" id="mFields"></div>
+    <div class="modal-acts">
+      <button id="mCancel" class="ghost" type="button">Cancel</button>
+      <button id="mConfirm" class="primary" type="button">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- Full Page Login View -->
+<div id="loginView">
+  <div class="card" style="width: 100%; max-width: 400px; border: none; background: transparent;">
+    <div style="text-align: center; margin-bottom: 32px;">
+      <h1 style="font-size: 24px; margin: 0 0 8px 0; font-weight: 600;">CopilotPi Access</h1>
+      <p style="color: var(--text-secondary); margin: 0;">Admin Console Authentication</p>
+    </div>
+    
+    <div id="flashLogin" class="hidden" role="alert"></div>
+
+    <form id="loginForm">
+      <label>
+        App Secret Key
+        <input id="appKeyInput" type="password" placeholder="Enter app_key from config" autocomplete="current-password" required>
+      </label>
+      <button type="submit" class="primary" style="width: 100%; margin-top: 8px;">Sign In</button>
+    </form>
+  </div>
+</div>
+
+<!-- Main App View -->
+<div id="appView" class="app-layout hidden">
+  
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"></polygon><line x1="12" y1="22" x2="12" y2="15.5"></line><polyline points="22 8.5 12 15.5 2 8.5"></polyline><polyline points="2 15.5 12 8.5 22 15.5"></polyline><line x1="12" y1="2" x2="12" y2="8.5"></line></svg>
+      CopilotPi
+    </div>
+    <nav class="sidebar-nav">
+      <a href="#overview" class="nav-item active" data-view="overview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+        Overview
+      </a>
+      <a href="#tokens" class="nav-item" data-view="tokens">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        SSO Tokens
+      </a>
+      <a href="#apikeys" class="nav-item" data-view="apikeys">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+        API Keys
+      </a>
+      <a href="#usage" class="nav-item" data-view="usage">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Usage Logs
+      </a>
+      <a href="#config" class="nav-item" data-view="config">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Configuration
+      </a>
+      <a href="#cache" class="nav-item" data-view="cache">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        Cache Manager
+      </a>
+      <a href="#models" class="nav-item" data-view="models">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="3" width="7" height="7" rx="1"/><rect x="15" y="3" width="7" height="7" rx="1"/><rect x="2" y="14" width="7" height="7" rx="1"/><rect x="15" y="14" width="7" height="7" rx="1"/></svg>
+        Models
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="ghost" id="logoutButton" style="justify-content: flex-start;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="16" height="16"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Sign out
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main Area -->
+  <main class="main-content">
+    <div class="page-container" id="pageContainer">
+      <div id="flashApp" class="hidden" role="alert"></div>
+
+      <!-- VIEW: OVERVIEW -->
+      <div id="view_overview" class="view-section">
+        <div class="page-header">
+          <div>
+            <h1>Dashboard</h1>
+            <p>System status and overall metrics.</p>
+          </div>
+        </div>
+        
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">Total SSO Tokens</div>
+            <div class="stat-value" id="st_tok_tot">—</div>
+            <div class="stat-desc" id="st_tok_act">Loading...</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Client API Keys</div>
+            <div class="stat-value" id="st_key_tot">—</div>
+            <div class="stat-desc" id="st_key_act">Loading...</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Global Chat Quota</div>
+            <div class="stat-value" id="st_quota">—</div>
+            <div class="stat-desc" id="st_quota_usage">Loading...</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">App Key Source</div>
+            <div class="stat-value" id="st_cfg_src" style="font-size: 20px; line-height: 1.6;">—</div>
+            <div class="stat-desc" id="st_cfg_db">Loading...</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Recent Usage Logs</h2>
+          <p class="desc">The last 5 requests routed through this proxy.</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Time</th><th>User / Key</th><th>Model</th><th>Input</th><th>Output</th><th>Elapsed</th></tr></thead>
+              <tbody id="overviewRecentLogs"><tr><td colspan="6" class="muted">Loading...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW: TOKENS -->
+      <div id="view_tokens" class="view-section hidden">
+        <div class="page-header">
+          <div>
+            <h1>Cookie Bundle Tokens</h1>
+            <p>Manage M365 Premium cookie bundles for routing to Microsoft Copilot.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Import Cookie Bundle</h2>
+          <p class="desc">Paste cookie bundle strings from DevTools → Application → Cookies (semicolon-separated). One bundle per line or comma-separated.</p>
+          <form id="tokenImportForm">
+            <label>Cookie Bundle <textarea id="tokenImportInput" placeholder="_C_Auth=...; _EDGE_S=SID=...; MC1=GUID=...; MUID=...; MUIDB=..."></textarea></label>
+            <div class="form-grid">
+              <label>Default Pool 
+                <select id="tokenImportPool"><option value="">Auto-detect</option><option value="free">Free</option><option value="premium">Premium</option></select>
+              </label>
+              <label>Initial Quota <input id="tokenImportQuota" type="number" placeholder="Auto-fetch"></label>
+              <label>Remark <input id="tokenImportRemark" type="text" placeholder="Optional context"></label>
+            </div>
+            <button type="submit" class="primary" id="tokenImportBtn">Import Tokens</button>
+          </form>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>ID</th><th>Token</th><th>Tier / Pool</th><th>Status</th><th>Quota</th><th>Last Used</th><th>Remark</th><th>Actions</th></tr></thead>
+            <tbody id="tokensTableBody"><tr><td colspan="8" class="muted">Loading tokens...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- VIEW: API KEYS -->
+      <div id="view_apikeys" class="view-section hidden">
+        <div class="page-header">
+          <div>
+            <h1>API Keys</h1>
+            <p>Client keys for authenticating requests to this proxy.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Create New Key</h2>
+          <p class="desc">Keys follow the standard <code>sk-...</code> format.</p>
+          <form id="keyCreateForm" class="form-grid">
+            <label>Name / Identifier <input id="keyNameInput" type="text" placeholder="e.g. Chat App UI" required></label>
+            <label>Rate Limit (req/min) <input id="keyRateInput" type="number" value="60"></label>
+            <label>Daily Limit (req/day) <input id="keyDailyInput" type="number" value="2000"></label>
+            <div style="display:flex; align-items:flex-end;"><button type="submit" class="primary" id="keyCreateBtn">Generate Key</button></div>
+          </form>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>ID</th><th>Name</th><th>Key (Masked)</th><th>Status</th><th>Limits</th><th>Usage</th><th>Last Used</th><th>Actions</th></tr></thead>
+            <tbody id="keysTableBody"><tr><td colspan="8" class="muted">Loading API keys...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- VIEW: USAGE -->
+      <div id="view_usage" class="view-section hidden">
+        <div class="page-header">
+          <div>
+            <h1>Usage Logs</h1>
+            <p>Request history and error tracking.</p>
+          </div>
+          <div class="flex items-center gap-4">
+            <select id="usagePeriod" onchange="refreshUsage()" style="width: auto; padding: 6px 12px;">
+              <option value="day">Last 24 Hours</option>
+              <option value="week">Last 7 Days</option>
+              <option value="month">Last 30 Days</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">Total Requests</div>
+            <div class="stat-value" id="usg_req">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Total Tokens</div>
+            <div class="stat-value" id="usg_tok">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Error Rate</div>
+            <div class="stat-value" id="usg_err">—</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Detailed Logs</h2>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Time</th><th>User / App</th><th>Model</th><th>Endpoint</th><th>Input/Output Tok.</th><th>Elapsed</th><th>Status</th></tr></thead>
+              <tbody id="usageLogsBody"><tr><td colspan="7" class="muted">Loading logs...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW: CONFIG -->
+      <div id="view_config" class="view-section hidden">
+        <div class="page-header">
+          <div>
+            <h1>Configuration</h1>
+            <p>Runtime proxy settings. Saving here persists to the database.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <form id="configForm">
+            <div class="form-grid">
+              <label>App Key (Admin Password) <input id="cfg_app_key" type="password" placeholder="Leave blank to keep unchanged"></label>
+              <label>LogLevel <select id="cfg_loglevel"><option value="debug">debug</option><option value="info">info</option><option value="warn">warn</option><option value="error">error</option></select></label>
+            </div>
+            <h3 style="margin: 20px 0 12px; font-size: 14px; font-weight: 500;">Upstream & Proxy</h3>
+            <div class="form-grid">
+              <label>Cloudflare Timeout (s) <input id="cfg_cf_timeout" type="number"></label>
+              <label>Auth Max Retries <input id="cfg_auth_retry" type="number"></label>
+            </div>
+            <div style="margin: 20px 0 12px; display: flex; align-items: center; gap: 10px;">
+              <h3 style="margin: 0; font-size: 14px; font-weight: 500;">Outbound Proxy</h3>
+              <span id="proxyStatusBadge" class="badge">No Proxy</span>
+            </div>
+            <div class="form-grid" style="align-items: flex-start;">
+              <label>
+                Base Proxy URL
+                <input id="proxyBaseUrl" type="text" placeholder="http://user:pass@host:port or socks5://host:port">
+                <span id="proxyBaseUrlError" style="color: var(--accent-red); font-size: 12px; margin-top: 4px; display: none;"></span>
+              </label>
+              <label>
+                Asset Proxy URL
+                <input id="proxyAssetUrl" type="text" placeholder="Leave empty to use Base Proxy URL">
+                <span id="proxyAssetUrlError" style="color: var(--accent-red); font-size: 12px; margin-top: 4px; display: none;"></span>
+                <span style="color: var(--text-tertiary); font-size: 11px; margin-top: 2px;">If empty, asset downloads use Base Proxy URL</span>
+              </label>
+            </div>
+            <h3 style="margin: 20px 0 12px; font-size: 14px; font-weight: 500;">Telegram Alerts</h3>
+            <div class="form-grid">
+              <label>Bot Token <input id="cfg_tg_token" type="password"></label>
+              <label>Chat ID <input id="cfg_tg_chat" type="text"></label>
+            </div>
+            <div style="margin-top: 24px;">
+              <button type="submit" class="primary" id="configSaveBtn">Save Configuration</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- VIEW: CACHE -->
+      <div id="view_cache" class="view-section hidden">
+        <div class="page-header flex items-start justify-between">
+          <div>
+            <h1>Cache Manager</h1>
+            <p>Manage stored media, images, and short-term caches.</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button class="ghost danger-text" onclick="doClearCache()">Clear Entire Cache</button>
+          </div>
+        </div>
+
+        <div class="stats-grid" id="cacheStatsGrid">
+          <!-- Populated dynamically -->
+          <div class="stat-card"><div class="stat-label">Cache Size</div><div class="stat-value">—</div></div>
+        </div>
+
+        <div class="card">
+          <div style="margin-bottom: 20px;">
+            <h2>Stored Files</h2>
+            <p class="desc" style="margin:0">Currently cached resources.</p>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Filename</th><th>Size</th><th>Type</th><th>Age</th><th>Actions</th></tr></thead>
+              <tbody id="cacheFilesBody"><tr><td colspan="5" class="muted">Loading files...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW: MODELS -->
+      <div id="view_models" class="view-section hidden">
+        <div class="page-header flex items-start justify-between">
+          <div>
+            <h1>Model Catalog</h1>
+            <p>All Grok models registered in this proxy, sourced from active config. Use the API ID when making requests.</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button class="ghost" onclick="refreshModels()">Refresh</button>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">Total Models</div>
+            <div class="stat-value" id="mdl_total">—</div>
+            <div class="stat-desc" id="mdl_total_desc">Unique model IDs</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Basic Pool</div>
+            <div class="stat-value" id="mdl_basic">—</div>
+            <div class="stat-desc">ssoBasic models</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Super Pool</div>
+            <div class="stat-value" id="mdl_super">—</div>
+            <div class="stat-desc">ssoSuper models</div>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table style="min-width:640px">
+            <thead><tr>
+              <th>Model Name</th>
+              <th>API Request ID</th>
+              <th>Pools</th>
+              <th>Cost ×</th>
+              <th>Capabilities</th>
+            </tr></thead>
+            <tbody id="modelsTableBody">
+              <tr><td colspan="5" class="muted">Loading models...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script>
+/* ─── State ─── */
+const S = { tokens: [], keys: [], cache: [] };
+
+/* ─── Formatters & Escape ─── */
+function esc(v) {
+  return String(v ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
+}
+function fmtTime(v) {
+  if (!v) return '—';
+  const d = new Date(v);
+  return isNaN(d) ? '—' : d.toLocaleString();
+}
+function fmtBytes(bytes) {
+  if (bytes === 0) return '0 B';
+  const k = 1024, sizes = ['B', 'KB', 'MB', 'GB'], i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+function fmtNum(n) {
+  return n ? new Intl.NumberFormat().format(n) : '0';
+}
+function iMore() { return `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>`; }
+function iCopy() { return `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`; }
+
+/* ─── Core Request ─── */
+async function req(path, opts = {}) {
+  const r = await fetch(path, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) }, ...opts });
+  const ct = r.headers.get('content-type') || '';
+  const body = ct.includes('application/json') ? await r.json().catch(() => null) : await r.text();
+  if (!r.ok) throw new Error(body?.error?.message || body?.message || (typeof body === 'string' && body) || 'Request failed');
+  return body;
+}
+
+/* ─── Toast & Flash ─── */
+const toastEl = document.getElementById('toast');
+let _toastTimer;
+function toast(msg, kind = 'ok') {
+  clearTimeout(_toastTimer);
+  toastEl.innerHTML = kind === 'ok' 
+    ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-green)" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>` 
+    : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-red)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`;
+  toastEl.innerHTML += ` <span>${esc(msg)}</span>`;
+  toastEl.className = 'show ' + kind;
+  _toastTimer = setTimeout(() => { toastEl.className = ''; }, 3500);
+}
+
+function flash(msg, kind = 'error', rawVal = '', target = 'flashApp') {
+  const f = document.getElementById(target);
+  f.className = kind;
+  if (rawVal) {
+    f.innerHTML = `<strong>${esc(msg)}</strong><div class="fkey">${esc(rawVal)}</div><button class="ghost" onclick="clip('${esc(rawVal)}')">${iCopy()} Copy Key</button>`;
+  } else {
+    f.innerHTML = `<strong>${esc(msg)}</strong>`;
+  }
+  f.classList.remove('hidden');
+}
+function clearFlash() {
+  document.getElementById('flashApp').classList.add('hidden');
+  document.getElementById('flashLogin').classList.add('hidden');
+}
+
+async function clip(text) {
+  try { await navigator.clipboard.writeText(text); toast('Copied to clipboard'); }
+  catch { toast('Copy failed', 'err'); }
+}
+
+/* ─── Modal ─── */
+const modalOv = document.getElementById('modalOv');
+let _mCb = null;
+function openModal({ title, msg = '', fields = [], confirmTxt = 'Confirm', confirmCls = '', onConfirm }) {
+  document.getElementById('mTitle').textContent = title;
+  document.getElementById('mMsg').textContent = msg;
+  const fieldsEl = document.getElementById('mFields');
+  fieldsEl.innerHTML = '';
+  for (const f of fields) {
+    const lbl = document.createElement('label');
+    lbl.textContent = f.label;
+    const el = f.type === 'textarea' 
+      ? Object.assign(document.createElement('textarea'), { rows: 3 })
+      : Object.assign(document.createElement('input'), { type: f.type || 'text' });
+    el.id = 'mf_' + f.key;
+    el.value = f.value ?? '';
+    if (f.placeholder) el.placeholder = f.placeholder;
+    if (f.readonly) {
+      el.readOnly = true;
+      el.style.fontFamily = 'var(--font-mono)';
+      el.style.fontSize = '12px';
+      const wrapper = document.createElement('div');
+      wrapper.style.cssText = 'display:flex;gap:8px;align-items:center;';
+      const copyBtn = document.createElement('button');
+      copyBtn.type = 'button';
+      copyBtn.className = 'ghost';
+      copyBtn.style.cssText = 'flex-shrink:0;padding:8px 14px;';
+      copyBtn.textContent = 'Copy';
+      copyBtn.addEventListener('click', () => clip(el.value));
+      wrapper.appendChild(el);
+      wrapper.appendChild(copyBtn);
+      lbl.appendChild(wrapper);
+    } else {
+      lbl.appendChild(el);
+    }
+    fieldsEl.appendChild(lbl);
+  }
+  const btn = document.getElementById('mConfirm');
+  btn.textContent = confirmTxt;
+  btn.className = 'primary ' + confirmCls;
+  _mCb = onConfirm;
+  modalOv.classList.remove('hidden');
+  requestAnimationFrame(() => modalOv.classList.add('show'));
+  setTimeout(() => (fieldsEl.querySelector('input,textarea') || btn).focus(), 80);
+}
+function closeModal() {
+  modalOv.classList.remove('show');
+  setTimeout(() => modalOv.classList.add('hidden'), 200);
+  _mCb = null;
+}
+document.getElementById('mCancel').addEventListener('click', closeModal);
+document.getElementById('mConfirm').addEventListener('click', () => {
+  if (!_mCb) return closeModal();
+  const vals = {};
+  document.getElementById('mFields').querySelectorAll('input,textarea').forEach(el => vals[el.id.replace('mf_', '')] = el.value);
+  _mCb(vals);
+  closeModal();
+});
+modalOv.addEventListener('click', e => { if (e.target === modalOv) closeModal(); });
+
+/* ─── Dropdowns ─── */
+let _activeDd = null;
+function toggleDd(id) {
+  const el = document.getElementById(id);
+  if (_activeDd && _activeDd !== el) _activeDd.classList.add('hidden');
+  el.classList.toggle('hidden');
+  _activeDd = el.classList.contains('hidden') ? null : el;
+}
+document.addEventListener('click', e => {
+  if (_activeDd && !e.target.closest('.dropdown')) { _activeDd.classList.add('hidden'); _activeDd = null; }
+});
+
+/* ─── View / Routing ─── */
+const views = ['overview', 'tokens', 'apikeys', 'usage', 'config', 'cache', 'models'];
+async function switchView(target) {
+  if (!views.includes(target)) target = 'overview';
+  
+  // Update sidebar UI
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  document.querySelector(`.nav-item[data-view="${target}"]`)?.classList.add('active');
+
+  // Smooth fade
+  const pc = document.getElementById('pageContainer');
+  pc.classList.add('fade-out');
+  
+  setTimeout(async () => {
+    views.forEach(v => document.getElementById('view_' + v).classList.add('hidden'));
+    document.getElementById('view_' + target).classList.remove('hidden');
+    clearFlash();
+    
+    try {
+      if (target === 'overview') await refreshOverview();
+      else if (target === 'tokens') await refreshTokens();
+      else if (target === 'apikeys') await refreshKeys();
+      else if (target === 'usage') await refreshUsage();
+      else if (target === 'config') await refreshConfig();
+      else if (target === 'cache') await refreshCache();
+      else if (target === 'models') await refreshModels();
+    } catch (err) {
+      toast('Failed loading data: ' + err.message, 'err');
+    }
+    
+    pc.classList.remove('fade-out');
+  }, 200);
+}
+
+window.addEventListener('hashchange', () => {
+  const hash = window.location.hash.substring(1);
+  switchView(hash || 'overview');
+});
+
+/* ─── Helpers Components ─── */
+function bc(v) { return 'badge ' + String(v || '').replace(/[^a-zA-Z0-9_-]/g, ''); }
+function qBar(cur, tot) {
+  if (!tot) return `<div class="q-bar-wrapper"><div class="q-bar-text"><span>${cur}</span><span class="q-sep">/</span><span>—</span></div></div>`;
+  const pct = Math.max(0, Math.min(100, Math.round(cur / tot * 100)));
+  const cls = pct >= 80 ? 'good' : pct >= 40 ? 'warn' : 'danger';
+  return `<div class="q-bar-wrapper"><div class="q-bar-text"><span>${fmtNum(cur)}</span><span class="q-sep">/</span><span>${fmtNum(tot)}</span></div><div class="q-bar-bg"><div class="q-bar-fill ${cls}" style="width:${pct}%"></div></div></div>`;
+}
+
+/* ─── LOADERS ─── */
+async function refreshOverview() {
+  const s = await req('/admin/system/status');
+  document.getElementById('st_tok_tot').textContent = fmtNum(s.tokens.total);
+  document.getElementById('st_tok_act').textContent = s.tokens.active + ' active tokens';
+  document.getElementById('st_key_tot').textContent = fmtNum(s.api_keys.total);
+  document.getElementById('st_key_act').textContent = s.api_keys.active + ' active keys';
+  
+  const dbc = s.config?.db_override_count ?? 0;
+  document.getElementById('st_cfg_src').innerHTML = `<span class="badge ${s.config?.app_key_source === 'DB' ? 'active' : 'ssoBasic'}">${esc(s.config?.app_key_source)}</span>`;
+  document.getElementById('st_cfg_db').textContent = dbc + ' DB overrides active';
+
+  try {
+    const q = await req('/admin/stats/quota');
+    // API returns { pools: [{pool, total_chat_quota, remaining_chat_quota, ...}] }
+    const pools = q.pools || [];
+    let remainingQuota = 0;
+    (q.pools || []).forEach(p => { remainingQuota += (p.remaining_chat_quota || 0); });
+    document.getElementById('st_quota').textContent = fmtNum(remainingQuota);
+    document.getElementById('st_quota_usage').textContent = 'Queries remaining in current window';
+  } catch {
+    document.getElementById('st_quota').textContent = 'ERROR';
+  }
+
+  // Load recent usage
+  try {
+    const u = await req('/admin/usage/logs?page_size=5');
+    const tbody = document.getElementById('overviewRecentLogs');
+    if (!u.data || u.data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="muted">No recent requests</td></tr>';
+      return;
+    }
+    tbody.innerHTML = u.data.map(l => 
+      `<tr>
+        <td class="text-xs muted">${esc(fmtTime(l.created_at))}</td>
+        <td>${esc(l.app_key_name || '—')}</td>
+        <td><code>${esc(l.model || l.endpoint || '—')}</code></td>
+        <td class="text-xs">${fmtNum(l.tokens_input || 0)}</td>
+        <td class="text-xs">${fmtNum(l.tokens_output || 0)}</td>
+        <td class="text-xs muted">${l.duration_ms}ms</td>
+      </tr>`
+    ).join('');
+  } catch (e) {
+    document.getElementById('overviewRecentLogs').innerHTML = '<tr><td colspan="6" class="muted text-danger">Failed to load logs</td></tr>';
+  }
+}
+
+async function refreshTokens() {
+  const res = await req('/admin/tokens?page_size=200');
+  S.tokens = res.data || [];
+  const tbody = document.getElementById('tokensTableBody');
+  if (!S.tokens.length) { tbody.innerHTML = '<tr><td colspan="8" class="muted">No tokens found.</td></tr>'; return; }
+  
+  tbody.innerHTML = S.tokens.map(t => {
+    const did = 'dd-t-' + t.id;
+    const active = t.status === 'active';
+    return `<tr>
+      <td class="text-xs muted">#${t.id}</td>
+      <td><code>${esc(t.token.substring(0,8))}...${esc(t.token.slice(-4))}</code></td>
+      <td><span class="${bc(t.pool)}">${esc(t.pool || '—')}</span></td>
+      <td><span class="${bc(t.status)}">${esc(t.status)}</span></td>
+      <td>${qBar(t.chat_quota, t.total_chat_quota)}</td>
+      <td class="text-xs muted">${esc(fmtTime(t.last_used))}</td>
+      <td class="text-xs muted">${esc(t.remark || '—')}</td>
+      <td>
+        <div class="row-actions">
+          <button class="ghost" onclick="doAction('tokens', ${t.id}, 'refresh')">Sync</button>
+          <div class="dropdown">
+            <button class="ghost" onclick="toggleDd('${did}')">${iMore()}</button>
+            <div class="dropdown-menu hidden" id="${did}">
+              <button onclick="doToggleToken(${t.id}, '${active ? 'disabled' : 'active'}'); toggleDd('${did}')">${active ? 'Disable' : 'Enable'}</button>
+              <button onclick="doReplaceToken(${t.id}); toggleDd('${did}')">Replace Token</button>
+              <div class="dd-divider"></div>
+              <button class="danger" onclick="doDeleteToken(${t.id}); toggleDd('${did}')">Delete</button>
+            </div>
+          </div>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function refreshKeys() {
+  const res = await req('/admin/apikeys?page_size=100');
+  S.keys = res.data || [];
+  const tbody = document.getElementById('keysTableBody');
+  if (!S.keys.length) { tbody.innerHTML = '<tr><td colspan="8" class="muted">No API keys found.</td></tr>'; return; }
+
+  tbody.innerHTML = S.keys.map(k => {
+    const did = 'dd-k-' + k.id;
+    const active = k.status === 'active';
+    return `<tr>
+      <td class="text-xs muted">#${k.id}</td>
+      <td style="font-weight:500;">${esc(k.name)}</td>
+      <td>
+        <div class="flex items-center gap-2">
+          <code style="max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${esc(k.key)}</code>
+        </div>
+      </td>
+      <td><span class="${bc(k.status)}">${esc(k.status)}</span></td>
+      <td class="text-xs" style="color:var(--text-secondary)">${k.rate_limit}/m · ${k.daily_limit}/d</td>
+      <td class="text-xs"><span class="badge ${k.daily_used > k.daily_limit*0.8 ? 'warning' : ''}">${k.daily_used} today</span></td>
+      <td class="text-xs muted">${esc(fmtTime(k.last_used_at))}</td>
+      <td>
+        <div class="row-actions">
+          <button class="ghost" onclick="doToggleKey(${k.id}, '${active ? 'inactive' : 'active'}')">${active ? 'Disable' : 'Enable'}</button>
+          <div class="dropdown">
+            <button class="ghost" onclick="toggleDd('${did}')">${iMore()}</button>
+            <div class="dropdown-menu hidden" id="${did}">
+              <button onclick="doRegenKey(${k.id}); toggleDd('${did}')">Regenerate Key</button>
+              <div class="dd-divider"></div>
+              <button class="danger" onclick="doDeleteKey(${k.id}); toggleDd('${did}')">Delete</button>
+            </div>
+          </div>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function refreshUsage() {
+  const p = document.getElementById('usagePeriod').value || '24h';
+  
+  // Total stats map to the system/usage endpoint
+  try {
+    const s = await req('/admin/system/usage?period=' + p);
+    document.getElementById('usg_req').textContent = fmtNum(s.requests);
+    document.getElementById('usg_tok').textContent = fmtNum((s.tokens_input || 0) + (s.tokens_output || 0));
+    const errRate = s.requests > 0 ? ((s.errors / s.requests) * 100).toFixed(1) : '0';
+    document.getElementById('usg_err').textContent = errRate + '%';
+  } catch {
+    document.getElementById('usg_req').textContent = 'ERR';
+  }
+
+  // Reload logs table
+  try {
+    const res = await req('/admin/usage/logs?page_size=20');
+    const tbody = document.getElementById('usageLogsBody');
+    if (!res.data || !res.data.length) { tbody.innerHTML = '<tr><td colspan="7" class="muted">No logs found.</td></tr>'; return; }
+    
+    tbody.innerHTML = res.data.map(l => 
+      `<tr>
+        <td class="text-xs muted">${esc(fmtTime(l.created_at))}</td>
+        <td>${esc(l.app_key_name || '—')}</td>
+        <td><code>${esc(l.model || '—')}</code></td>
+        <td class="text-xs muted">${esc(l.endpoint || '—')}</td>
+        <td class="text-xs"><span class="badge" title="Input">${fmtNum(l.tokens_input || 0)}</span> / <span class="badge" title="Output">${fmtNum(l.tokens_output || 0)}</span></td>
+        <td class="text-xs muted">${l.duration_ms}ms</td>
+        <td><span class="${l.status >= 400 ? 'badge error' : 'badge success'}">${l.status >= 400 ? 'ERR' : 'OK'}</span></td>
+      </tr>`
+    ).join('');
+  } catch {}
+}
+
+function updateProxyBadge(baseUrl) {
+  const badge = document.getElementById('proxyStatusBadge');
+  if (baseUrl && baseUrl.trim() !== '') {
+    badge.textContent = 'Proxy Active';
+    badge.className = 'badge active';
+  } else {
+    badge.textContent = 'No Proxy';
+    badge.className = 'badge';
+  }
+}
+
+function validateProxyUrl(val, errId) {
+  const errEl = document.getElementById(errId);
+  if (!val || val.trim() === '') { errEl.style.display = 'none'; return true; }
+  try {
+    const u = new URL(val.trim());
+    if (!['http:', 'https:', 'socks5:'].includes(u.protocol)) {
+      errEl.textContent = 'Invalid scheme. Use http://, https://, or socks5://';
+      errEl.style.display = 'block';
+      return false;
+    }
+    errEl.style.display = 'none';
+    return true;
+  } catch {
+    errEl.textContent = 'Not a valid URL';
+    errEl.style.display = 'block';
+    return false;
+  }
+}
+
+async function refreshConfig() {
+  const c = await req('/admin/config');
+  document.getElementById('cfg_loglevel').value = c.log_level || 'info';
+  document.getElementById('cfg_cf_timeout').value = c.proxy?.cloudflare_timeout || 60;
+  document.getElementById('cfg_auth_retry').value = c.proxy?.max_auth_retries || 3;
+  document.getElementById('cfg_tg_token').value = c.proxy?.telegram_bot_token || '';
+  document.getElementById('cfg_tg_chat').value = c.proxy?.telegram_chat_id || '';
+  document.getElementById('cfg_app_key').value = ''; // Don't show password
+  const baseUrl = c.proxy?.base_proxy_url || '';
+  document.getElementById('proxyBaseUrl').value = baseUrl;
+  document.getElementById('proxyAssetUrl').value = c.proxy?.asset_proxy_url || '';
+  updateProxyBadge(baseUrl);
+}
+
+async function refreshCache() {
+  try {
+    const s = await req('/admin/cache/stats');
+    const totCount = (s.image?.count || 0) + (s.video?.count || 0);
+    const totSizeMB = (s.image?.size_mb || 0) + (s.video?.size_mb || 0);
+    
+    const cg = document.getElementById('cacheStatsGrid');
+    cg.innerHTML = `
+      <div class="stat-card"><div class="stat-label">Cache Storage</div><div class="stat-value">${fmtBytes(totSizeMB * 1048576)}</div><div class="stat-desc">${totCount} files stored</div></div>
+      <div class="stat-card"><div class="stat-label">Cache Limit</div><div class="stat-value">Dynamic</div><div class="stat-desc">Managed by storage limits</div></div>
+    `;
+    
+    const [resImg, resVid] = await Promise.all([
+      req('/admin/cache/files?type=image&page_size=50').catch(() => ({ items: [] })),
+      req('/admin/cache/files?type=video&page_size=50').catch(() => ({ items: [] }))
+    ]);
+    const files = [...(resImg.items || []), ...(resVid.items || [])].sort((a,b) => b.mod_time_ms - a.mod_time_ms);
+    const tbody = document.getElementById('cacheFilesBody');
+    if (!files.length) { tbody.innerHTML = '<tr><td colspan="5" class="muted">Cache is empty.</td></tr>'; return; }
+    
+    tbody.innerHTML = files.map(f => {
+      const isVid = f.name.endsWith('.mp4');
+      const type = isVid ? 'video' : 'image';
+      return `
+      <tr>
+        <td><code>${esc(f.name)}</code></td>
+        <td class="text-xs muted">${fmtBytes(f.size_bytes)}</td>
+        <td class="text-xs"><span class="badge ${isVid?'ssoBasic':'ssoSuper'}">${esc(type)}</span></td>
+        <td class="text-xs muted">${esc(fmtTime(f.mod_time_ms))}</td>
+        <td><button class="ghost danger-text" onclick="doDelCacheFile('${type}', '${esc(f.name)}')">Remove</button></td>
+      </tr>
+      `;
+    }).join('');
+  } catch (err) {
+    document.getElementById('cacheFilesBody').innerHTML = `<tr><td colspan="5" class="muted text-danger">Failed: ${esc(err.message)}</td></tr>`;
+  }
+}
+
+
+/* ─── MODEL CATALOG ─── */
+const capColors = {
+  'chat':       'active',
+  'thinking':   'warn',
+  'vision':     'ssoSuper',
+  'tools':      'ssoBasic',
+  'image-gen':  '',
+  'image-edit': '',
+  'video-gen':  '',
+};
+function capBadge(cap) {
+  return `<span class="badge ${capColors[cap] ?? ''}">` + cap + `</span>`;
+}
+
+async function refreshModels() {
+  const tbody = document.getElementById('modelsTableBody');
+  tbody.innerHTML = '<tr><td colspan="5" class="muted">Loading...</td></tr>';
+  try {
+    const data = await req('/admin/models');
+    document.getElementById('mdl_total').textContent = data.length;
+    document.getElementById('mdl_basic').textContent = data.filter(m => m.pools.includes('ssoBasic')).length;
+    document.getElementById('mdl_super').textContent = data.filter(m => m.pools.includes('ssoSuper')).length;
+
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="muted">No models configured.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.map(m => `
+      <tr>
+        <td><code>${esc(m.id)}</code></td>
+        <td>
+          <div class="flex items-center gap-2">
+            <code style="color:var(--accent-cyan)">${esc(m.api_id)}</code>
+            <button class="ghost" style="padding:4px 10px;font-size:11px;" onclick="clip('${esc(m.api_id)}')" title="Copy API ID">${iCopy()}</button>
+          </div>
+        </td>
+        <td>${m.pools.map(p => `<span class="badge ${p}">${p.replace('sso','')}</span>`).join(' ')}</td>
+        <td><span class="badge">${m.cost_multiplier}&times;</span></td>
+        <td>${m.capabilities.map(c => capBadge(c)).join(' ')}</td>
+      </tr>`).join('');
+  } catch(err) {
+    tbody.innerHTML = `<tr><td colspan="5" class="muted">${esc('Failed: ' + err.message)}</td></tr>`;
+  }
+}
+
+/* ─── ACTION HANDLERS ─── */
+async function doAction(resource, id, action, method='POST', body=null) {
+  try {
+    await req(`/admin/${resource}/${id}/${action}`, { method, body: body ? JSON.stringify(body) : null });
+    toast('Action successful');
+    if (resource === 'tokens') refreshTokens();
+    if (resource === 'apikeys') refreshKeys();
+  } catch(e) { flash(e.message, 'error'); }
+}
+
+function doReplaceToken(id) {
+  openModal({
+    title: 'Replace Token #' + id,
+    msg: 'Paste the new SSO token. We will re-check quota directly.',
+    fields: [{ key: 'token', label: 'New Token string', type: 'textarea' }],
+    onConfirm: async (v) => {
+      try {
+        await req(`/admin/tokens/${id}/replace`, { method: 'POST', body: JSON.stringify({ token: (v.token||'').trim(), reclassify: true }) });
+        toast('Token replaced'); refreshTokens();
+      } catch(e) { flash(e.message, 'error'); }
+    }
+  });
+}
+
+function doDeleteToken(id) {
+  openModal({
+    title: 'Delete Token', msg: 'Are you sure you want to permanently delete token #' + id + '?', confirmTxt: 'Delete', confirmCls: 'danger',
+    onConfirm: async () => {
+      try { await req(`/admin/tokens/${id}`, { method: 'DELETE' }); toast('Deleted'); refreshTokens(); } 
+      catch(e) { flash(e.message, 'error'); }
+    }
+  });
+}
+
+async function doToggleToken(id, status) {
+  try { await req(`/admin/tokens/${id}`, { method: 'PUT', body: JSON.stringify({ status }) }); toast('Token ' + status); refreshTokens(); }
+  catch(e) { flash(e.message, 'error'); }
+}
+
+function doRegenKey(id) {
+  openModal({
+    title: 'Regenerate Key', msg: 'Connected clients will IMMEDIATELY lose access.', confirmTxt: 'Regenerate', confirmCls: 'danger',
+    onConfirm: async () => {
+      try {
+        const r = await req(`/admin/apikeys/${id}/regenerate`, { method: 'POST' });
+        openModal({
+          title: 'Key Regenerated', 
+          msg: 'Please update your clients with the new secret key. You will not be able to view it again.', 
+          fields: [{ key: 'newKey', label: 'Secret Key', value: r.key, readonly: true }],
+          confirmTxt: 'Close',
+          onConfirm: () => {}
+        });
+        refreshKeys();
+      } catch(e) { flash(e.message, 'error'); }
+    }
+  });
+}
+
+function doDeleteKey(id) {
+  openModal({
+    title: 'Delete Key', msg: 'Permanently revoke client API Key?', confirmTxt: 'Delete', confirmCls: 'danger',
+    onConfirm: async () => {
+      try { await req(`/admin/apikeys/${id}`, { method: 'DELETE' }); toast('Key Deleted'); refreshKeys(); } 
+      catch(e) { flash(e.message, 'error'); }
+    }
+  });
+}
+
+async function doToggleKey(id, status) {
+  try { await req(`/admin/apikeys/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }); toast('Key ' + status); refreshKeys(); }
+  catch(e) { flash(e.message, 'error'); }
+}
+
+/* Cache Handles */
+function doClearCache() {
+  openModal({
+    title: 'Clear Entire Cache', msg: 'Are you sure? This will delete all cached resources immediately.', confirmTxt: 'Clear Cache', confirmCls: 'danger',
+    onConfirm: async () => {
+      try { 
+        await req('/admin/cache/clear', { method: 'POST', body: JSON.stringify({ type: 'image' }) }); 
+        await req('/admin/cache/clear', { method: 'POST', body: JSON.stringify({ type: 'video' }) }).catch(e => null); 
+        toast('Cache cleared'); refreshCache(); 
+      } catch(e) { flash(e.message, 'error'); }
+    }
+  });
+}
+async function doDelCacheFile(type, name) {
+  try { await req('/admin/cache/delete', { method: 'POST', body: JSON.stringify({ type, names: [name] }) }); toast('File removed'); refreshCache(); }
+  catch(e) { flash(e.message, 'error'); }
+}
+
+
+/* ─── FORMS ─── */
+document.getElementById('loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = e.target.querySelector('button'); btn.disabled = true;
+  try {
+    await req('/admin/login', { method: 'POST', body: JSON.stringify({ key: document.getElementById('appKeyInput').value }) });
+    document.getElementById('loginView').classList.add('hidden');
+    document.getElementById('appView').classList.remove('hidden');
+    toast('Logged in successfully');
+    switchView(window.location.hash.substring(1) || 'overview');
+  } catch (err) { flash(err.message, 'error', '', 'flashLogin'); }
+  finally { btn.disabled = false; }
+});
+
+document.getElementById('logoutButton').addEventListener('click', async () => {
+  try { await req('/admin/logout', { method: 'POST' }); } catch {}
+  document.getElementById('loginView').classList.remove('hidden');
+  document.getElementById('appView').classList.add('hidden');
+  toast('Signed out');
+});
+
+document.getElementById('tokenImportForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const tokens = document.getElementById('tokenImportInput').value.split(/[\n,]+/).map(s=>s.trim()).filter(Boolean);
+  if(!tokens.length) return flash('Enter at least one token', 'error');
+  
+  const pool = document.getElementById('tokenImportPool').value;
+  const quota = document.getElementById('tokenImportQuota').value;
+  const remark = document.getElementById('tokenImportRemark').value;
+  
+  const body = { operation: 'import', tokens, pool, remark };
+  if(quota) body.quota = parseInt(quota, 10);
+  
+  const btn = document.getElementById('tokenImportBtn'); btn.disabled = true;
+  try {
+    const res = await req('/admin/tokens/batch', { method:'POST', body: JSON.stringify(body) });
+    document.getElementById('tokenImportInput').value = '';
+    toast(`Imported ${res.success} tokens` + (res.failed ? ` (${res.failed} failed)` : ''));
+    refreshTokens();
+  } catch(err) { flash(err.message, 'error'); }
+  finally { btn.disabled = false; }
+});
+
+document.getElementById('keyCreateForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const name = document.getElementById('keyNameInput').value;
+  const rate = parseInt(document.getElementById('keyRateInput').value, 10) || 60;
+  const daily = parseInt(document.getElementById('keyDailyInput').value, 10) || 2000;
+  
+  const btn = document.getElementById('keyCreateBtn'); btn.disabled = true;
+  try {
+    const res = await req('/admin/apikeys', { method:'POST', body: JSON.stringify({ name, rate_limit: rate, daily_limit: daily }) });
+    document.getElementById('keyNameInput').value = '';
+    openModal({
+      title: 'API Key Generated', 
+      msg: 'Please store this key securely. You will not be able to view it again.', 
+      fields: [{ key: 'newKey', label: 'Secret Key', value: res.key, readonly: true }],
+      confirmTxt: 'Close',
+      onConfirm: () => {}
+    });
+    refreshKeys();
+  } catch(err) { flash(err.message, 'error'); }
+  finally { btn.disabled = false; }
+});
+
+document.getElementById('configForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const baseUrl = document.getElementById('proxyBaseUrl').value.trim();
+  const assetUrl = document.getElementById('proxyAssetUrl').value.trim();
+  const validBase = validateProxyUrl(baseUrl, 'proxyBaseUrlError');
+  const validAsset = validateProxyUrl(assetUrl, 'proxyAssetUrlError');
+  if (!validBase || !validAsset) return;
+
+  const body = {
+    log_level: document.getElementById('cfg_loglevel').value,
+    proxy: {
+      cloudflare_timeout: parseInt(document.getElementById('cfg_cf_timeout').value, 10),
+      max_auth_retries: parseInt(document.getElementById('cfg_auth_retry').value, 10),
+      telegram_bot_token: document.getElementById('cfg_tg_token').value,
+      telegram_chat_id: document.getElementById('cfg_tg_chat').value,
+      base_proxy_url: baseUrl,
+      asset_proxy_url: assetUrl
+    }
+  };
+  const ak = document.getElementById('cfg_app_key').value;
+  if(ak) body.app_key = ak;
+
+  const btn = document.getElementById('configSaveBtn'); btn.disabled = true;
+  try {
+    await req('/admin/config', { method:'PUT', body: JSON.stringify(body) });
+    document.getElementById('cfg_app_key').value = '';
+    updateProxyBadge(baseUrl);
+    toast('Config saved & overridden');
+    refreshConfig();
+  } catch(err) { flash(err.message, 'error'); }
+  finally { btn.disabled = false; }
+});
+
+/* Init */
+async function initSession() {
+  try {
+    await req('/admin/verify');
+    document.getElementById('loginView').classList.add('hidden');
+    document.getElementById('appView').classList.remove('hidden');
+    const hash = window.location.hash.substring(1);
+    switchView(hash || 'overview');
+  } catch {
+    document.getElementById('loginView').classList.remove('hidden');
+    document.getElementById('appView').classList.add('hidden');
+  }
+}
+
+document.addEventListener('DOMContentLoaded', initSession);
+
+</script>
+</body>
+</html>

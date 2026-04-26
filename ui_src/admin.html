@@ -1,0 +1,297 @@
+<!-- Toast -->
+<div id="toast" role="status" aria-live="polite"></div>
+
+<!-- Modal -->
+<div id="modalOv" class="modal-ov hidden" role="dialog" aria-modal="true">
+  <div class="modal">
+    <h3 id="mTitle">Confirm</h3>
+    <p class="desc" id="mMsg"></p>
+    <div class="modal-fields" id="mFields"></div>
+    <div class="modal-acts">
+      <button id="mCancel" class="ghost" type="button">Cancel</button>
+      <button id="mConfirm" class="primary" type="button">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- Full Page Login View -->
+<div id="loginView">
+  <div class="card" style="width: 100%; max-width: 400px; border: none; background: transparent;">
+    <div style="text-align: center; margin-bottom: 32px;">
+      <h1 style="font-size: 24px; margin: 0 0 8px 0; font-weight: 600;">CopilotPi Access</h1>
+      <p style="color: var(--text-secondary); margin: 0;">Admin Console Authentication</p>
+    </div>
+    
+    <div id="flashLogin" class="hidden" role="alert"></div>
+
+    <form id="loginForm">
+      <label>
+        App Secret Key
+        <input id="appKeyInput" type="password" placeholder="Enter app_key from config" autocomplete="current-password" required>
+      </label>
+      <button type="submit" class="primary" style="width: 100%; margin-top: 8px;">Sign In</button>
+    </form>
+  </div>
+</div>
+
+<!-- Main App View -->
+<div id="appView" class="app-layout hidden">
+  
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"></polygon><line x1="12" y1="22" x2="12" y2="15.5"></line><polyline points="22 8.5 12 15.5 2 8.5"></polyline><polyline points="2 15.5 12 8.5 22 15.5"></polyline><line x1="12" y1="2" x2="12" y2="8.5"></line></svg>
+      CopilotPi
+    </div>
+    <nav class="sidebar-nav">
+      <a href="#overview" class="nav-item active" data-view="overview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+        Overview
+      </a>
+      <a href="#tokens" class="nav-item" data-view="tokens">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        SSO Tokens
+      </a>
+      <a href="#apikeys" class="nav-item" data-view="apikeys">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+        API Keys
+      </a>
+      <a href="#usage" class="nav-item" data-view="usage">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Usage Logs
+      </a>
+      <a href="#config" class="nav-item" data-view="config">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Configuration
+      </a>
+      <a href="#cache" class="nav-item" data-view="cache">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        Cache Manager
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="ghost" id="logoutButton" style="justify-content: flex-start;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="16" height="16"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Sign out
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main Area -->
+  <main class="main-content">
+    <div class="page-container" id="pageContainer">
+      <div id="flashApp" class="hidden" role="alert"></div>
+
+      <!-- VIEW: OVERVIEW -->
+      <div id="view_overview" class="view-section">
+        <div class="page-header">
+          <div>
+            <h1>Dashboard</h1>
+            <p>System status and overall metrics.</p>
+          </div>
+        </div>
+        
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">Total SSO Tokens</div>
+            <div class="stat-value" id="st_tok_tot">—</div>
+            <div class="stat-desc" id="st_tok_act">Loading...</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Client API Keys</div>
+            <div class="stat-value" id="st_key_tot">—</div>
+            <div class="stat-desc" id="st_key_act">Loading...</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Global Chat Quota</div>
+            <div class="stat-value" id="st_quota">—</div>
+            <div class="stat-desc" id="st_quota_usage">Loading...</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">App Key Source</div>
+            <div class="stat-value" id="st_cfg_src" style="font-size: 20px; line-height: 1.6;">—</div>
+            <div class="stat-desc" id="st_cfg_db">Loading...</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Recent Usage Logs</h2>
+          <p class="desc">The last 5 requests routed through this proxy.</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Time</th><th>User / Key</th><th>Model</th><th>Input</th><th>Output</th><th>Elapsed</th></tr></thead>
+              <tbody id="overviewRecentLogs"><tr><td colspan="6" class="muted">Loading...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW: TOKENS -->
+      <div id="view_tokens" class="view-section hidden">
+        <div class="page-header">
+          <div>
+            <h1>Cookie Bundle Tokens</h1>
+            <p>Manage M365 Premium cookie bundles for routing to Microsoft Copilot.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Import Cookie Bundle</h2>
+          <p class="desc">Paste cookie bundle strings from DevTools → Application → Cookies (semicolon-separated). One bundle per line or comma-separated.</p>
+          <form id="tokenImportForm">
+            <label>Cookie Bundle <textarea id="tokenImportInput" placeholder="_C_Auth=...; _EDGE_S=SID=...; MC1=GUID=...; MUID=...; MUIDB=..."></textarea></label>
+            <div class="form-grid">
+              <label>Default Pool 
+                <select id="tokenImportPool"><option value="">Auto-detect</option><option value="free">Free</option><option value="premium">Premium</option></select>
+              </label>
+              <label>Initial Quota <input id="tokenImportQuota" type="number" placeholder="Auto-fetch"></label>
+              <label>Remark <input id="tokenImportRemark" type="text" placeholder="Optional context"></label>
+            </div>
+            <button type="submit" class="primary" id="tokenImportBtn">Import Tokens</button>
+          </form>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>ID</th><th>Token</th><th>Tier / Pool</th><th>Status</th><th>Quota</th><th>Last Used</th><th>Remark</th><th>Actions</th></tr></thead>
+            <tbody id="tokensTableBody"><tr><td colspan="8" class="muted">Loading tokens...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- VIEW: API KEYS -->
+      <div id="view_apikeys" class="view-section hidden">
+        <div class="page-header">
+          <div>
+            <h1>API Keys</h1>
+            <p>Client keys for authenticating requests to this proxy.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Create New Key</h2>
+          <p class="desc">Keys follow the standard <code>sk-...</code> format.</p>
+          <form id="keyCreateForm" class="form-grid">
+            <label>Name / Identifier <input id="keyNameInput" type="text" placeholder="e.g. Chat App UI" required></label>
+            <label>Rate Limit (req/min) <input id="keyRateInput" type="number" value="60"></label>
+            <label>Daily Limit (req/day) <input id="keyDailyInput" type="number" value="2000"></label>
+            <div style="display:flex; align-items:flex-end;"><button type="submit" class="primary" id="keyCreateBtn">Generate Key</button></div>
+          </form>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>ID</th><th>Name</th><th>Key (Masked)</th><th>Status</th><th>Limits</th><th>Usage</th><th>Last Used</th><th>Actions</th></tr></thead>
+            <tbody id="keysTableBody"><tr><td colspan="8" class="muted">Loading API keys...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- VIEW: USAGE -->
+      <div id="view_usage" class="view-section hidden">
+        <div class="page-header">
+          <div>
+            <h1>Usage Logs</h1>
+            <p>Request history and error tracking.</p>
+          </div>
+          <div class="flex items-center gap-4">
+            <select id="usagePeriod" onchange="refreshUsage()" style="width: auto; padding: 6px 12px;">
+              <option value="day">Last 24 Hours</option>
+              <option value="week">Last 7 Days</option>
+              <option value="month">Last 30 Days</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">Total Requests</div>
+            <div class="stat-value" id="usg_req">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Total Tokens</div>
+            <div class="stat-value" id="usg_tok">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Error Rate</div>
+            <div class="stat-value" id="usg_err">—</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Detailed Logs</h2>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Time</th><th>User / App</th><th>Model</th><th>Endpoint</th><th>Input/Output Tok.</th><th>Elapsed</th><th>Status</th></tr></thead>
+              <tbody id="usageLogsBody"><tr><td colspan="7" class="muted">Loading logs...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW: CONFIG -->
+      <div id="view_config" class="view-section hidden">
+        <div class="page-header">
+          <div>
+            <h1>Configuration</h1>
+            <p>Runtime proxy settings. Saving here persists to the database.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <form id="configForm">
+            <div class="form-grid">
+              <label>App Key (Admin Password) <input id="cfg_app_key" type="password" placeholder="Leave blank to keep unchanged"></label>
+              <label>LogLevel <select id="cfg_loglevel"><option value="debug">debug</option><option value="info">info</option><option value="warn">warn</option><option value="error">error</option></select></label>
+            </div>
+            <h3 style="margin: 20px 0 12px; font-size: 14px; font-weight: 500;">Upstream & Proxy</h3>
+            <div class="form-grid">
+              <label>Cloudflare Timeout (s) <input id="cfg_cf_timeout" type="number"></label>
+              <label>Auth Max Retries <input id="cfg_auth_retry" type="number"></label>
+            </div>
+            <h3 style="margin: 20px 0 12px; font-size: 14px; font-weight: 500;">Telegram Alerts</h3>
+            <div class="form-grid">
+              <label>Bot Token <input id="cfg_tg_token" type="password"></label>
+              <label>Chat ID <input id="cfg_tg_chat" type="text"></label>
+            </div>
+            <div style="margin-top: 24px;">
+              <button type="submit" class="primary" id="configSaveBtn">Save Configuration</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- VIEW: CACHE -->
+      <div id="view_cache" class="view-section hidden">
+        <div class="page-header flex items-start justify-between">
+          <div>
+            <h1>Cache Manager</h1>
+            <p>Manage stored media, images, and short-term caches.</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button class="ghost danger-text" onclick="doClearCache()">Clear Entire Cache</button>
+          </div>
+        </div>
+
+        <div class="stats-grid" id="cacheStatsGrid">
+          <!-- Populated dynamically -->
+          <div class="stat-card"><div class="stat-label">Cache Size</div><div class="stat-value">—</div></div>
+        </div>
+
+        <div class="card">
+          <div style="margin-bottom: 20px;">
+            <h2>Stored Files</h2>
+            <p class="desc" style="margin:0">Currently cached resources.</p>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Filename</th><th>Size</th><th>Type</th><th>Age</th><th>Actions</th></tr></thead>
+              <tbody id="cacheFilesBody"><tr><td colspan="5" class="muted">Loading files...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
