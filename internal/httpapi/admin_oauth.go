@@ -185,7 +185,8 @@ func handleOAuthStart(ts OAuthAdminStore) http.HandlerFunc {
 		})
 
 		// Launch a goroutine to handle the incoming callback and exchange the code.
-		go handleLocalCallback(r.Context(), resultCh, ts)
+		// Use context.Background() — r.Context() is cancelled as soon as the /start response is sent.
+		go handleLocalCallback(context.Background(), resultCh, ts)
 
 		slog.Info("oauth: flow started", "token_id", tokenID, "redirect_uri", redirectURI)
 
