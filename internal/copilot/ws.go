@@ -49,8 +49,14 @@ func (c *wsClient) connect() error {
 		return ErrDisconnected
 	}
 
+	sessionID := newConversationID()
+	accessToken := extractAccessToken(c.cookieBundle)
+
 	wsURL := fmt.Sprintf("%s?api-version=%s&clientSessionId=%s",
-		c.cfg.WSURL, c.cfg.WSAPIVersion, newConversationID())
+		c.cfg.WSURL, c.cfg.WSAPIVersion, sessionID)
+	if accessToken != "" {
+		wsURL += "&accessToken=" + accessToken
+	}
 
 	headers := buildUpgradeHeaders(c.cookieBundle, c.cfg.UserAgent)
 

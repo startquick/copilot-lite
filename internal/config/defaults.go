@@ -27,7 +27,7 @@ func DefaultConfig() *Config {
 			ShutdownGracePeriodSec: 30,
 		},
 		Copilot: CopilotConfig{
-			WSURL:                    "wss://copilot.microsoft.com/chat",
+			WSURL:                    "wss://copilot.microsoft.com/chat/api",
 			WSAPIVersion:             "2",
 			NewConversationPerRequest: true,
 			PingInterval:             25,
@@ -48,9 +48,9 @@ func DefaultConfig() *Config {
 			FailThreshold:         5,
 			UsageFlushIntervalSec: 30,
 			CoolCheckIntervalSec:  30,
-			BasicModels:           []string{},
+			BasicModels: []string{"copilot-free", "copilot-basic"},
 			SuperModels: []string{
-				"gpt-4o", "gpt-4", "gpt-4o-mini", "o1", "o3",
+				"copilot-free", "copilot-basic", "copilot-premium",
 			},
 			PreferredPool:        "premium",
 			BasicCoolDurationMin: 60,
