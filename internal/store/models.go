@@ -60,7 +60,7 @@ type APIKey struct {
 	DeletedAt      gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
-// Token represents a Grok authentication token.
+// Token represents a Copilot authentication token with OAuth2 credentials.
 type Token struct {
 	ID                uint           `gorm:"primaryKey" json:"id"`
 	Token             string         `gorm:"uniqueIndex;size:512" json:"token"`
@@ -79,6 +79,10 @@ type Token struct {
 	NsfwEnabled       bool           `gorm:"default:false;index" json:"nsfw_enabled"`
 	StatusReason      string         `gorm:"size:256" json:"status_reason,omitempty"`
 	Priority          int            `gorm:"default:0;index" json:"priority"`
+	// OAuth2 credential fields (set by Microsoft OAuth2 Authorization Code flow)
+	AccessToken     string     `gorm:"type:text" json:"-"`          // MS JWE access token (short-lived, ~1h)
+	RefreshToken    string     `gorm:"type:text" json:"-"`          // MS refresh token (long-lived, ~90d)
+	TokenExpiresAt  *time.Time `json:"token_expires_at,omitempty"` // when the access token expires
 	CreatedAt         time.Time      `json:"created_at"`
 	UpdatedAt         time.Time      `json:"updated_at"`
 	DeletedAt         gorm.DeletedAt `gorm:"index" json:"-"`

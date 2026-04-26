@@ -12,8 +12,12 @@ func TestModelToMode(t *testing.T) {
 		{"gpt-4o", "smart"},
 		{"gpt-4", "smart"},
 		{"gpt-4o-mini", "smart"},
-		{"o1", "smart"},
-		{"o3", "smart"},
+		{"copilot-free", "smart"},
+		{"copilot-premium", "smart"},
+		{"o1", "reasoning"},       // reasoning models map to Copilot reasoning mode
+		{"o1-mini", "reasoning"},
+		{"o3", "reasoning"},
+		{"o3-mini", "reasoning"},
 		{"unknown-model", "smart"}, // fallback
 		{"", "smart"},              // empty → fallback
 	}

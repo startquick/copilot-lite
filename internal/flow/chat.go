@@ -112,8 +112,8 @@ func (f *ChatFlow) executeWithRetry(ctx context.Context, req *ChatRequest, pool,
 				exclude = make(map[uint]struct{})
 				tok, err = f.pickChatToken(pool, fallback, exclude)
 			}
-			if err != nil && fallback != "" {
-				slog.Debug("flow: no token available", "pool", pool, "error", err)
+			if err != nil {
+				slog.Debug("flow: no token available", "pool", pool, "fallback", fallback, "error", err)
 				lastErr = err
 				continue
 			}
@@ -127,7 +127,7 @@ func (f *ChatFlow) executeWithRetry(ctx context.Context, req *ChatRequest, pool,
 				"priority", tok.Priority, "attempt", attempt)
 			currentToken = tok
 			tokenRetries = 0
-			client = f.clientFactory(tok.Token)
+			client = f.clientFactory(currentToken)
 		}
 
 		// Build copilot request

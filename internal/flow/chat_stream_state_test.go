@@ -19,7 +19,7 @@ func TestChatFlow_TextPassthrough(t *testing.T) {
 			{Text: "!"},
 		},
 	}
-	flow := NewChatFlow(tokenSvc, func(token string) copilot.Client { return client }, &ChatFlowConfig{
+	flow := NewChatFlow(tokenSvc, func(tok *store.Token) copilot.Client { return client }, &ChatFlowConfig{
 		RetryConfig: DefaultRetryConfig(),
 		TokenConfig: testFlowTokenConfig(),
 	})
@@ -52,7 +52,7 @@ func TestChatFlow_ToolCallsAcrossChunks(t *testing.T) {
 			{Text: "</tool_call>done"},
 		},
 	}
-	flow := NewChatFlow(tokenSvc, func(token string) copilot.Client { return client }, &ChatFlowConfig{
+	flow := NewChatFlow(tokenSvc, func(tok *store.Token) copilot.Client { return client }, &ChatFlowConfig{
 		RetryConfig: DefaultRetryConfig(),
 		TokenConfig: testFlowTokenConfig(),
 	})

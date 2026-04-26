@@ -151,7 +151,7 @@ func TestChatFlow_Success(t *testing.T) {
 	}
 
 	cfg := &ChatFlowConfig{RetryConfig: DefaultRetryConfig(), TokenConfig: testFlowTokenConfig()}
-	flow := NewChatFlow(tokenSvc, func(token string) copilot.Client { return client }, cfg)
+	flow := NewChatFlow(tokenSvc, func(tok *store.Token) copilot.Client { return client }, cfg)
 
 	req := &ChatRequest{
 		Messages: []Message{{Role: "user", Content: "Hi"}},
@@ -189,7 +189,7 @@ func TestChatFlow_RetryOnRateLimit(t *testing.T) {
 
 	callCount := 0
 
-	clientFactory := func(token string) copilot.Client {
+	clientFactory := func(tok *store.Token) copilot.Client {
 		callCount++
 		if callCount <= 2 {
 			return &mockCopilotClient{chatErr: copilot.ErrRateLimited}
@@ -242,13 +242,13 @@ func TestChatFlow_TokenRotation(t *testing.T) {
 	var usedTokens []string
 	var mu sync.Mutex
 
-	clientFactory := func(token string) copilot.Client {
+	clientFactory := func(tok *store.Token) copilot.Client {
 		mu.Lock()
-		usedTokens = append(usedTokens, token)
+		usedTokens = append(usedTokens, tok.Token)
 		mu.Unlock()
 
 		// First two tokens fail, third succeeds
-		if token == "tok1" || token == "tok2" {
+		if tok.Token == "tok1" || tok.Token == "tok2" {
 			return &mockCopilotClient{chatErr: copilot.ErrRateLimited}
 		}
 		return &mockCopilotClient{
@@ -294,14 +294,14 @@ func TestChatFlow_TokenRotation_ExcludesPreviouslyFailedActiveToken(t *testing.T
 	var mu sync.Mutex
 	attempts := make(map[string]int)
 
-	clientFactory := func(token string) copilot.Client {
+	clientFactory := func(tok *store.Token) copilot.Client {
 		mu.Lock()
-		usedTokens = append(usedTokens, token)
-		attempts[token]++
-		count := attempts[token]
+		usedTokens = append(usedTokens, tok.Token)
+		attempts[tok.Token]++
+		count := attempts[tok.Token]
 		mu.Unlock()
 
-		if token == "tok3" {
+		if tok.Token == "tok3" {
 			return &mockCopilotClient{events: []copilot.StreamEvent{{Text: "Success"}}}
 		}
 
@@ -351,7 +351,7 @@ func TestChatFlow_NonRetryableError(t *testing.T) {
 	client := &mockCopilotClient{chatErr: badReqErr}
 
 	cfg := &ChatFlowConfig{RetryConfig: DefaultRetryConfig(), TokenConfig: testFlowTokenConfig()}
-	flow := NewChatFlow(tokenSvc, func(token string) copilot.Client { return client }, cfg)
+	flow := NewChatFlow(tokenSvc, func(tok *store.Token) copilot.Client { return client }, cfg)
 
 	req := &ChatRequest{
 		Messages: []Message{{Role: "user", Content: "Hi"}},
@@ -415,7 +415,7 @@ func TestChatFlow_WithTools(t *testing.T) {
 	}
 
 	cfg := &ChatFlowConfig{RetryConfig: DefaultRetryConfig(), TokenConfig: testFlowTokenConfig()}
-	flow := NewChatFlow(tokenSvc, func(token string) copilot.Client { return client }, cfg)
+	flow := NewChatFlow(tokenSvc, func(tok *store.Token) copilot.Client { return client }, cfg)
 
 	req := &ChatRequest{
 		Messages: []Message{{Role: "user", Content: "What's the weather in Tokyo?"}},
@@ -480,7 +480,7 @@ func TestChatFlow_WithMultimodalContent(t *testing.T) {
 	}
 
 	cfg := &ChatFlowConfig{RetryConfig: DefaultRetryConfig(), TokenConfig: testFlowTokenConfig()}
-	flow := NewChatFlow(tokenSvc, func(token string) copilot.Client { return client }, cfg)
+	flow := NewChatFlow(tokenSvc, func(tok *store.Token) copilot.Client { return client }, cfg)
 
 	req := &ChatRequest{
 		Messages: []Message{
@@ -553,7 +553,7 @@ func TestChatFlow_HotReload(t *testing.T) {
 
 	callCount := 0
 	// Client always fails with retryable error
-	clientFactory := func(token string) copilot.Client {
+	clientFactory := func(tok *store.Token) copilot.Client {
 		callCount++
 		return &mockCopilotClient{chatErr: copilot.ErrRateLimited}
 	}
@@ -608,7 +608,7 @@ func TestChatFlow_RecordUsageAPIKeyID(t *testing.T) {
 	}
 
 	cfg := &ChatFlowConfig{RetryConfig: DefaultRetryConfig(), TokenConfig: testFlowTokenConfig()}
-	f := NewChatFlow(tokenSvc, func(token string) copilot.Client { return client }, cfg)
+	f := NewChatFlow(tokenSvc, func(tok *store.Token) copilot.Client { return client }, cfg)
 
 	recorder := &mockUsageRecorder{}
 	f.SetUsageRecorder(recorder)
@@ -650,7 +650,7 @@ func TestChatFlow_EstimatedTrue_WhenNoUsageFromUpstream(t *testing.T) {
 	}
 
 	cfg := &ChatFlowConfig{RetryConfig: DefaultRetryConfig(), TokenConfig: testFlowTokenConfig()}
-	f := NewChatFlow(tokenSvc, func(token string) copilot.Client { return client }, cfg)
+	f := NewChatFlow(tokenSvc, func(tok *store.Token) copilot.Client { return client }, cfg)
 
 	recorder := &mockUsageRecorder{}
 	f.SetUsageRecorder(recorder)

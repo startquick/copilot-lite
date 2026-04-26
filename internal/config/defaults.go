@@ -27,7 +27,7 @@ func DefaultConfig() *Config {
 			ShutdownGracePeriodSec: 30,
 		},
 		Copilot: CopilotConfig{
-			WSURL:                    "wss://copilot.microsoft.com/chat/api",
+			WSURL:                    "wss://copilot.microsoft.com/c/api/chat",
 			WSAPIVersion:             "2",
 			NewConversationPerRequest: true,
 			PingInterval:             25,

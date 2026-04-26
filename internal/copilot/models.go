@@ -2,16 +2,26 @@ package copilot
 
 import "strings"
 
-// modeMap maps OpenAI model names to Copilot chat modes.
+// modeMap maps model names to Copilot chat modes observed in DevTools.
+// Modes confirmed: "smart" (standard), "reasoning" (o1-style deep think)
 var modeMap = map[string]string{
-	"gpt-4o":      "smart",
-	"gpt-4":       "smart",
-	"gpt-4o-mini": "smart",
-	"o1":          "smart",
-	"o3":          "smart",
+	// Standard models → smart mode
+	"gpt-4o":          "smart",
+	"gpt-4":           "smart",
+	"gpt-4o-mini":     "smart",
+	"gpt-4-turbo":     "smart",
+	"copilot-free":    "smart",
+	"copilot-basic":   "smart",
+	"copilot-premium": "smart",
+	// Reasoning models → reasoning mode (o1/o3 style, deeper think)
+	"o1":              "reasoning",
+	"o1-mini":         "reasoning",
+	"o3":              "reasoning",
+	"o3-mini":         "reasoning",
+	"copilot-reasoning": "reasoning",
 }
 
-// modelToMode returns the Copilot mode for a given OpenAI model name.
+// modelToMode returns the Copilot mode for a given model name.
 // Falls back to "smart" for unknown models.
 func modelToMode(model string) string {
 	if mode, ok := modeMap[model]; ok {

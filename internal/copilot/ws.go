@@ -13,23 +13,29 @@ import (
 	"github.com/crmmc/copilotpi/internal/config"
 )
 
+// TokenProvider supplies a live access token for WebSocket authentication.
+// Implementations must check token expiry and refresh if necessary.
+type TokenProvider interface {
+	AccessToken(ctx context.Context) (string, error)
+}
+
 // wsClient is the WebSocket-backed Copilot client.
 type wsClient struct {
-	cookieBundle string
-	cfg          *config.CopilotConfig
+	tokenProvider TokenProvider
+	cfg           *config.CopilotConfig
 
-	mu           sync.Mutex
-	conn         *websocket.Conn
-	consentSent  bool
-	closed       bool
+	mu          sync.Mutex
+	conn        *websocket.Conn
+	consentSent bool
+	closed      bool
 }
 
 // newWSClient creates a new wsClient but does not connect yet.
 // The connection is established lazily on the first Chat() call.
-func newWSClient(cookieBundle string, cfg *config.CopilotConfig) (*wsClient, error) {
+func newWSClient(provider TokenProvider, cfg *config.CopilotConfig) (*wsClient, error) {
 	if cfg == nil {
 		cfg = &config.CopilotConfig{
-			WSURL:        "wss://copilot.microsoft.com/chat",
+			WSURL:        "wss://copilot.microsoft.com/c/api/chat",
 			WSAPIVersion: "2",
 			PingInterval: 25,
 			ReconnectMax: 3,
@@ -37,8 +43,8 @@ func newWSClient(cookieBundle string, cfg *config.CopilotConfig) (*wsClient, err
 		}
 	}
 	return &wsClient{
-		cookieBundle: cookieBundle,
-		cfg:          cfg,
+		tokenProvider: provider,
+		cfg:           cfg,
 	}, nil
 }
 
@@ -49,16 +55,31 @@ func (c *wsClient) connect() error {
 		return ErrDisconnected
 	}
 
-	sessionID := newConversationID()
-	accessToken := extractAccessToken(c.cookieBundle)
+	// Obtain a fresh access token — refreshes if expired.
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
-	wsURL := fmt.Sprintf("%s?api-version=%s&clientSessionId=%s",
-		c.cfg.WSURL, c.cfg.WSAPIVersion, sessionID)
-	if accessToken != "" {
-		wsURL += "&accessToken=" + accessToken
+	var accessToken string
+	if c.tokenProvider != nil {
+		tok, err := c.tokenProvider.AccessToken(ctx)
+		if err != nil {
+			return fmt.Errorf("%w: %v", ErrInvalidToken, err)
+		}
+		accessToken = tok
 	}
 
-	headers := buildUpgradeHeaders(c.cookieBundle, c.cfg.UserAgent)
+	if accessToken == "" {
+		return ErrInvalidToken
+	}
+
+	sessionID := newClientSessionID()
+
+	// URL format observed in DevTools:
+	// wss://copilot.microsoft.com/c/api/chat?cursor=0&api-version=2&clientSessionId=<UUID>&accessToken=<JWT>
+	wsURL := fmt.Sprintf("%s?cursor=0&api-version=%s&clientSessionId=%s&accessToken=%s",
+		c.cfg.WSURL, c.cfg.WSAPIVersion, sessionID, accessToken)
+
+	headers := buildUpgradeHeaders(c.cfg.UserAgent)
 
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 20 * time.Second,
@@ -67,6 +88,9 @@ func (c *wsClient) connect() error {
 	conn, resp, err := dialer.Dial(wsURL, headers)
 	if err != nil {
 		if resp != nil {
+			slog.Debug("copilot: websocket upgrade failed",
+				"status", resp.StatusCode,
+				"url", c.cfg.WSURL)
 			switch resp.StatusCode {
 			case http.StatusUnauthorized:
 				return ErrInvalidToken
@@ -75,13 +99,15 @@ func (c *wsClient) connect() error {
 			case http.StatusTooManyRequests:
 				return ErrRateLimited
 			}
+		} else {
+			slog.Debug("copilot: websocket dial failed (no HTTP response)", "error", err)
 		}
 		return fmt.Errorf("%w: %v", ErrDisconnected, err)
 	}
 
 	c.conn = conn
 	c.consentSent = false
-	slog.Debug("copilot: websocket connected", "url", wsURL)
+	slog.Debug("copilot: websocket connected", "url", c.cfg.WSURL)
 	return nil
 }
 
@@ -111,12 +137,39 @@ func (c *wsClient) ensureConnected() error {
 	return fmt.Errorf("%w: %v", ErrDisconnected, lastErr)
 }
 
-// sendConsent sends the reportLocalConsents message to the server.
-// MUST be called with c.mu held after connect.
+// sendConsent waits for the server's initial "connected" event, then sends
+// reportLocalConsents. MUST be called with c.mu held after connect.
 func (c *wsClient) sendConsent() error {
 	if c.consentSent {
 		return nil
 	}
+
+	// Drain initial server messages until we see the "connected" event.
+	// Copilot sends {type:"system", event:"connected"} and {event:"sequenceAck"}
+	// before it is ready to receive messages.
+	_ = c.conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+	for {
+		_, rawMsg, err := c.conn.ReadMessage()
+		if err != nil {
+			_ = c.conn.SetReadDeadline(time.Time{})
+			return fmt.Errorf("waiting for connected event: %w", err)
+		}
+		slog.Debug("copilot: handshake event", "raw", string(rawMsg))
+
+		var ev struct {
+			Type  string `json:"type"`
+			Event string `json:"event"`
+		}
+		_ = json.Unmarshal(rawMsg, &ev)
+
+		// Observed format: {"event":"connected","requestId":"...","id":"0"}
+		// Break on "connected" event (no "type" wrapper needed)
+		if ev.Event == "connected" {
+			break
+		}
+	}
+	_ = c.conn.SetReadDeadline(time.Time{}) // reset deadline
+
 	msg := map[string]interface{}{
 		"event":           "reportLocalConsents",
 		"grantedConsents": []interface{}{},

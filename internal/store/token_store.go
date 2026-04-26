@@ -186,3 +186,26 @@ func (s *TokenStore) DeleteToken(ctx context.Context, id uint) error {
 	}
 	return nil
 }
+
+// OAuthCredentials holds the OAuth2 access and refresh tokens for a token record.
+type OAuthCredentials struct {
+	AccessToken    string
+	RefreshToken   string
+	TokenExpiresAt *time.Time
+}
+
+// SaveOAuthTokens persists the OAuth2 credentials for a token record.
+// It also sets the token's Status to "active" when credentials are valid.
+func (s *TokenStore) SaveOAuthTokens(ctx context.Context, tokenID uint, creds OAuthCredentials) error {
+	updates := map[string]any{
+		"access_token":     creds.AccessToken,
+		"refresh_token":    creds.RefreshToken,
+		"token_expires_at": creds.TokenExpiresAt,
+	}
+	if creds.RefreshToken != "" {
+		updates["status"] = TokenStatusActive
+		updates["status_reason"] = ""
+	}
+	return s.db.WithContext(ctx).Model(&Token{}).Where("id = ?", tokenID).Updates(updates).Error
+}
+

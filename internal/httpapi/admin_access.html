@@ -680,31 +680,29 @@ tr:hover td { background-color: var(--bg-elevated); }
       <div id="view_tokens" class="view-section hidden">
         <div class="page-header">
           <div>
-            <h1>Cookie Bundle Tokens</h1>
-            <p>Manage M365 Premium cookie bundles for routing to Microsoft Copilot.</p>
+            <h1>Microsoft Account Tokens</h1>
+            <p>Manage Microsoft accounts authenticated via OAuth2 for routing to Microsoft Copilot.</p>
           </div>
         </div>
 
         <div class="card">
-          <h2>Import Cookie Bundle</h2>
-          <p class="desc">Paste cookie bundle strings from DevTools → Application → Cookies (semicolon-separated). One bundle per line or comma-separated.</p>
-          <form id="tokenImportForm">
-            <label>Cookie Bundle <textarea id="tokenImportInput" placeholder="_C_Auth=...; _EDGE_S=SID=...; MC1=GUID=...; MUID=...; MUIDB=..."></textarea></label>
-            <div class="form-grid">
-              <label>Default Pool 
-                <select id="tokenImportPool"><option value="">Auto-detect</option><option value="free">Free</option><option value="premium">Premium</option></select>
-              </label>
-              <label>Initial Quota <input id="tokenImportQuota" type="number" placeholder="Auto-fetch"></label>
-              <label>Remark <input id="tokenImportRemark" type="text" placeholder="Optional context"></label>
-            </div>
-            <button type="submit" class="primary" id="tokenImportBtn">Import Tokens</button>
-          </form>
+          <h2>Add Microsoft Account</h2>
+          <p class="desc">Sign in with a Microsoft account to obtain OAuth2 tokens. The server will automatically refresh tokens before they expire.</p>
+          <div class="form-grid">
+            <label>Default Pool
+              <select id="oauthAddPool"><option value="">Auto-detect</option><option value="free">Free</option><option value="premium">Premium</option></select>
+            </label>
+            <label>Initial Quota <input id="oauthAddQuota" type="number" placeholder="Auto-fetch"></label>
+            <label>Remark <input id="oauthAddRemark" type="text" placeholder="e.g. personal account"></label>
+          </div>
+          <button class="primary" id="oauthAddBtn" onclick="doOAuthLogin()">&#x1F511; Add Microsoft Account</button>
+          <div id="oauthStatusMsg" style="margin-top:12px;display:none;"></div>
         </div>
 
         <div class="table-wrap">
           <table>
-            <thead><tr><th>ID</th><th>Token</th><th>Tier / Pool</th><th>Status</th><th>Quota</th><th>Last Used</th><th>Remark</th><th>Actions</th></tr></thead>
-            <tbody id="tokensTableBody"><tr><td colspan="8" class="muted">Loading tokens...</td></tr></tbody>
+            <thead><tr><th>ID</th><th>Account</th><th>Tier / Pool</th><th>Status</th><th>Auth</th><th>Quota</th><th>Last Used</th><th>Remark</th><th>Actions</th></tr></thead>
+            <tbody id="tokensTableBody"><tr><td colspan="9" class="muted">Loading tokens...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -1146,16 +1144,33 @@ async function refreshTokens() {
   const res = await req('/admin/tokens?page_size=200');
   S.tokens = res.data || [];
   const tbody = document.getElementById('tokensTableBody');
-  if (!S.tokens.length) { tbody.innerHTML = '<tr><td colspan="8" class="muted">No tokens found.</td></tr>'; return; }
+  if (!S.tokens.length) { tbody.innerHTML = '<tr><td colspan="9" class="muted">No tokens found.</td></tr>'; return; }
   
   tbody.innerHTML = S.tokens.map(t => {
     const did = 'dd-t-' + t.id;
     const active = t.status === 'active';
+    // OAuth auth status badge
+    const authStatus = t.oauth_status || 'unauthenticated';
+    const authBadgeClass = {
+      'valid':           'active',
+      'expiring':        'warn',
+      'expired':         'error',
+      'unauthenticated': ''
+    }[authStatus] || '';
+    const authLabel = {
+      'valid':           '✅ Valid',
+      'expiring':        '⚠️ Expiring',
+      'expired':         '🔴 Expired',
+      'unauthenticated': '🔑 Not Linked'
+    }[authStatus] || authStatus;
+    // Account label: show token prefix as identifier
+    const acct = t.token ? (t.token.substring(0,8) + '...' + t.token.slice(-4)) : '—';
     return `<tr>
       <td class="text-xs muted">#${t.id}</td>
-      <td><code>${esc(t.token.substring(0,8))}...${esc(t.token.slice(-4))}</code></td>
+      <td><code>${esc(acct)}</code></td>
       <td><span class="${bc(t.pool)}">${esc(t.pool || '—')}</span></td>
       <td><span class="${bc(t.status)}">${esc(t.status)}</span></td>
+      <td><span class="badge ${authBadgeClass}">${authLabel}</span></td>
       <td>${qBar(t.chat_quota, t.total_chat_quota)}</td>
       <td class="text-xs muted">${esc(fmtTime(t.last_used))}</td>
       <td class="text-xs muted">${esc(t.remark || '—')}</td>
@@ -1165,8 +1180,8 @@ async function refreshTokens() {
           <div class="dropdown">
             <button class="ghost" onclick="toggleDd('${did}')">${iMore()}</button>
             <div class="dropdown-menu hidden" id="${did}">
+              <button onclick="doOAuthReauth(${t.id}); toggleDd('${did}')">🔑 Re-authenticate</button>
               <button onclick="doToggleToken(${t.id}, '${active ? 'disabled' : 'active'}'); toggleDd('${did}')">${active ? 'Disable' : 'Enable'}</button>
-              <button onclick="doReplaceToken(${t.id}); toggleDd('${did}')">Replace Token</button>
               <div class="dd-divider"></div>
               <button class="danger" onclick="doDeleteToken(${t.id}); toggleDd('${did}')">Delete</button>
             </div>
@@ -1490,27 +1505,90 @@ document.getElementById('logoutButton').addEventListener('click', async () => {
   toast('Signed out');
 });
 
-document.getElementById('tokenImportForm').addEventListener('submit', async e => {
-  e.preventDefault();
-  const tokens = document.getElementById('tokenImportInput').value.split(/[\n,]+/).map(s=>s.trim()).filter(Boolean);
-  if(!tokens.length) return flash('Enter at least one token', 'error');
-  
-  const pool = document.getElementById('tokenImportPool').value;
-  const quota = document.getElementById('tokenImportQuota').value;
-  const remark = document.getElementById('tokenImportRemark').value;
-  
-  const body = { operation: 'import', tokens, pool, remark };
-  if(quota) body.quota = parseInt(quota, 10);
-  
-  const btn = document.getElementById('tokenImportBtn'); btn.disabled = true;
+/* ─── OAuth Login ─── */
+async function doOAuthLogin() {
+  const pool   = document.getElementById('oauthAddPool').value;
+  const quota  = document.getElementById('oauthAddQuota').value;
+  const remark = document.getElementById('oauthAddRemark').value;
+  const btn    = document.getElementById('oauthAddBtn');
+  const msg    = document.getElementById('oauthStatusMsg');
+
+  btn.disabled = true;
+  msg.style.display = 'block';
+  msg.innerHTML = '<span class="muted">Creating account record...</span>';
+
   try {
-    const res = await req('/admin/tokens/batch', { method:'POST', body: JSON.stringify(body) });
-    document.getElementById('tokenImportInput').value = '';
-    toast(`Imported ${res.success} tokens` + (res.failed ? ` (${res.failed} failed)` : ''));
-    refreshTokens();
+    // 1. Create a placeholder token record first
+    const body = { operation: 'import', tokens: ['oauth-pending-' + Date.now()], pool, remark };
+    if (quota) body.quota = parseInt(quota, 10);
+    const batchRes = await req('/admin/tokens/batch', { method: 'POST', body: JSON.stringify(body) });
+    if (!batchRes.ids || !batchRes.ids.length) throw new Error('Failed to create token record');
+    const tokenID = batchRes.ids[0];
+
+    // 2. Start OAuth flow for that token
+    msg.innerHTML = '<span class="muted">Starting OAuth flow...</span>';
+    const oauthRes = await req(`/admin/auth/copilot/start?token_id=${tokenID}`);
+
+    // 3. Open auth URL in new tab
+    msg.innerHTML = `
+      <div style="padding:12px;background:var(--bg-secondary);border-radius:8px;">
+        <p style="margin:0 0 8px;">🔗 <strong>Opening Microsoft login...</strong></p>
+        <p class="text-xs muted" style="margin:0 0 12px;">A new tab will open. Complete sign-in there. This will auto-complete once you're done.</p>
+        <a href="${esc(oauthRes.auth_url)}" target="_blank" class="primary" style="display:inline-block;padding:8px 16px;border-radius:6px;text-decoration:none;font-size:13px;">Open Login Page ↗</a>
+        <p class="text-xs muted" style="margin:12px 0 0;">⏳ Waiting for callback... (up to 60 seconds)</p>
+      </div>`;
+    window.open(oauthRes.auth_url, '_blank');
+
+    // 4. Poll for token status (max 70s)
+    let attempts = 0;
+    const poll = setInterval(async () => {
+      attempts++;
+      try {
+        const tRes = await req(`/admin/tokens/${tokenID}`);
+        const tok = tRes.token || tRes;
+        if (tok.oauth_status && tok.oauth_status !== 'unauthenticated') {
+          clearInterval(poll);
+          msg.innerHTML = `<span class="badge active">✅ Account linked! OAuth status: ${esc(tok.oauth_status)}</span>`;
+          document.getElementById('oauthAddRemark').value = '';
+          document.getElementById('oauthAddQuota').value = '';
+          refreshTokens();
+          setTimeout(() => { msg.style.display = 'none'; }, 4000);
+        }
+      } catch {}
+      if (attempts >= 14) { // 70s
+        clearInterval(poll);
+        msg.innerHTML = `<span class="muted">Callback not received automatically. If login succeeded, the token will appear shortly — refresh the table.</span>`;
+      }
+    }, 5000);
+
+  } catch(err) {
+    msg.innerHTML = `<span class="badge error">Error: ${esc(err.message)}</span>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function doOAuthReauth(tokenID) {
+  try {
+    const oauthRes = await req(`/admin/auth/copilot/start?token_id=${tokenID}`);
+    window.open(oauthRes.auth_url, '_blank');
+    toast('Login page opened — complete sign-in in the new tab');
+    // Poll briefly
+    let attempts = 0;
+    const poll = setInterval(async () => {
+      attempts++;
+      try {
+        const tRes = await req(`/admin/tokens/${tokenID}`);
+        const tok = tRes.token || tRes;
+        if (tok.oauth_status === 'valid' || tok.oauth_status === 'expiring') {
+          clearInterval(poll); toast('Re-authenticated successfully'); refreshTokens();
+        }
+      } catch {}
+      if (attempts >= 14) clearInterval(poll);
+    }, 5000);
   } catch(err) { flash(err.message, 'error'); }
-  finally { btn.disabled = false; }
-});
+}
+
 
 document.getElementById('keyCreateForm').addEventListener('submit', async e => {
   e.preventDefault();

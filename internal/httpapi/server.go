@@ -49,6 +49,8 @@ type Server struct {
 	apiKeyStore       APIKeyStoreInterface
 	cacheService      *cache.Service
 	configStore       *store.ConfigStore
+	oauthStore        OAuthAdminStore
+	oauthRedirectPort int
 }
 
 // ServerConfig holds server configuration.
@@ -66,6 +68,8 @@ type ServerConfig struct {
 	APIKeyStore       APIKeyStoreInterface
 	CacheService      *cache.Service
 	ConfigStore       *store.ConfigStore
+	OAuthStore        OAuthAdminStore
+	OAuthRedirectPort int
 }
 
 // NewServer creates a new HTTP server with configured routes.
@@ -93,6 +97,8 @@ func NewServer(cfg *ServerConfig) *Server {
 		apiKeyStore:       cfg.APIKeyStore,
 		cacheService:      cfg.CacheService,
 		configStore:       cfg.ConfigStore,
+		oauthStore:        cfg.OAuthStore,
+		oauthRedirectPort: cfg.OAuthRedirectPort,
 	}
 	s.setupMiddleware()
 	s.setupRoutes()
@@ -299,6 +305,11 @@ func (s *Server) setupRoutes() {
 				r.Post("/cache/delete", handleDeleteCacheFiles(s.cacheService))
 				r.Post("/cache/clear", handleClearCache(s.cacheService))
 				r.Get("/cache/files/{type}/{name}", handleServeCacheFile(s.cacheService))
+			}
+
+			// OAuth routes (Microsoft Authorization Code + PKCE flow)
+			if s.oauthStore != nil {
+				registerOAuthRoutes(r, s.oauthStore, s.oauthRedirectPort)
 			}
 		})
 	})

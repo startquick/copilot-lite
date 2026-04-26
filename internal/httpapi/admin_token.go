@@ -56,6 +56,7 @@ type TokenResponse struct {
 	Remark          string     `json:"remark,omitempty"`
 	NsfwEnabled     bool       `json:"nsfw_enabled"`
 	Priority        int        `json:"priority"`
+	OAuthStatus     string     `json:"oauth_status"`
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
 }
@@ -82,6 +83,7 @@ func tokenToResponse(t *store.Token) TokenResponse {
 		Remark:          t.Remark,
 		NsfwEnabled:     t.NsfwEnabled,
 		Priority:        t.Priority,
+		OAuthStatus:     getOAuthTokenStatus(t),
 		CreatedAt:       t.CreatedAt,
 		UpdatedAt:       t.UpdatedAt,
 	}

@@ -101,6 +101,7 @@ type BatchTokenResponse struct {
 	Success   int             `json:"success"`
 	Failed    int             `json:"failed"`
 	Errors    []BatchError    `json:"errors,omitempty"`
+	IDs       []uint          `json:"ids,omitempty"`        // For import: IDs of created tokens
 	Tokens    []TokenResponse `json:"tokens,omitempty"`     // For export (masked)
 	RawTokens []string        `json:"raw_tokens,omitempty"` // For export with raw=true
 }
@@ -151,7 +152,7 @@ func handleBatchImport(ctx context.Context, ts TokenStoreInterface, syncer Token
 			continue
 		}
 
-		if len(tokenStr) < 20 {
+		if len(tokenStr) < 20 && !strings.HasPrefix(tokenStr, "oauth-pending-") {
 			resp.Failed++
 			resp.Errors = append(resp.Errors, BatchError{
 				Index:   i,
@@ -215,6 +216,8 @@ func handleBatchImport(ctx context.Context, ts TokenStoreInterface, syncer Token
 			})
 			continue
 		}
+		// Track created ID
+		resp.IDs = append(resp.IDs, token.ID)
 		// Sync to in-memory pool
 		if syncer != nil {
 			syncer.AddToPool(token)

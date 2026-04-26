@@ -55,7 +55,22 @@ type Message struct {
 	Content string `json:"content"`
 }
 
-// NewClient creates a new Copilot WebSocket client for the given cookie bundle.
-func NewClient(cookieBundle string, cfg *config.CopilotConfig) (Client, error) {
-	return newWSClient(cookieBundle, cfg)
+// NewClient creates a new Copilot WebSocket client for the given token provider.
+func NewClient(provider TokenProvider, cfg *config.CopilotConfig) (Client, error) {
+	return newWSClient(provider, cfg)
+}
+
+// NewClientFromToken creates a new Copilot WebSocket client using a static access token.
+// This is a convenience wrapper for callers that already hold a resolved token string.
+func NewClientFromToken(accessToken string, cfg *config.CopilotConfig) (Client, error) {
+	return newWSClient(&staticTokenProvider{token: accessToken}, cfg)
+}
+
+// staticTokenProvider implements TokenProvider for a fixed access token string.
+type staticTokenProvider struct {
+	token string
+}
+
+func (s *staticTokenProvider) AccessToken(_ context.Context) (string, error) {
+	return s.token, nil
 }

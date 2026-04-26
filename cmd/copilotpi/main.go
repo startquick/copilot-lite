@@ -123,8 +123,11 @@ func main() {
 	copilotCfg := runtimeCfg.Get().Copilot
 	chatFlow := flow.NewChatFlow(
 		tokenSvc,
-		func(cookieBundle string) copilot.Client {
-			c, err := copilot.NewClient(cookieBundle, &copilotCfg)
+		func(tok *store.Token) copilot.Client {
+			// Each token has its own MSAuthProvider that reads OAuth2 credentials
+			// from the DB and auto-refreshes before the access token expires.
+			authProvider := copilot.NewMSAuthProvider(tok.ID, tokenStore)
+			c, err := copilot.NewClient(authProvider, &copilotCfg)
 			if err != nil {
 				return nil
 			}
@@ -210,6 +213,8 @@ func main() {
 		APIKeyStore:       apiKeyStore,
 		CacheService:      cacheSvc,
 		ConfigStore:       configStore,
+		OAuthStore:        tokenStore,
+		OAuthRedirectPort: cfg.Copilot.OAuthRedirectPort,
 	})
 	addr := fmt.Sprintf("%s:%d", cfg.App.Host, cfg.App.Port)
 

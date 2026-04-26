@@ -43,7 +43,7 @@ admin_window_sec = 300
 # ==================== Microsoft Copilot WebSocket ====================
 [copilot]
 # Copilot WebSocket endpoint
-ws_url = "wss://copilot.microsoft.com/chat/api"
+ws_url = "wss://copilot.microsoft.com/c/api/chat"
 # WebSocket API version
 ws_api_version = "2"
 # Ping interval to keep connection alive (seconds)
@@ -52,6 +52,8 @@ ping_interval = 25
 reconnect_max = 3
 # User-Agent string for WebSocket upgrade
 user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+# Local HTTP port for OAuth2 authorization code callback listener
+oauth_redirect_port = 18080
 
 # ==================== Retry Policy ====================
 [retry]

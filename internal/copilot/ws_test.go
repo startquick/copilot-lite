@@ -35,6 +35,14 @@ func mockCopilotServer(t *testing.T, handler func(conn *websocket.Conn)) *httpte
 // TestChatStreaming verifies that appendText events are assembled into StreamEvents.
 func TestChatStreaming(t *testing.T) {
 	ts := mockCopilotServer(t, func(conn *websocket.Conn) {
+		// Send the "connected" handshake event that the client waits for.
+		connectedMsg := map[string]string{"event": "connected", "requestId": "r1", "id": "0"}
+		data, _ := json.Marshal(connectedMsg)
+		if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
+			t.Logf("failed to send connected event: %v", err)
+			return
+		}
+
 		// Read the reportLocalConsents message (consent)
 		if _, _, err := conn.ReadMessage(); err != nil {
 			t.Logf("expected consent message, got error: %v", err)
@@ -50,14 +58,14 @@ func TestChatStreaming(t *testing.T) {
 		chunks := []string{"Hello", " World", "!"}
 		for _, chunk := range chunks {
 			msg := map[string]interface{}{"event": "appendText", "text": chunk}
-			data, _ := json.Marshal(msg)
-			if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
+			msgData, _ := json.Marshal(msg)
+			if err := conn.WriteMessage(websocket.TextMessage, msgData); err != nil {
 				return
 			}
 		}
 		done := map[string]string{"event": "done", "messageId": "m1"}
-		data, _ := json.Marshal(done)
-		_ = conn.WriteMessage(websocket.TextMessage, data)
+		doneData, _ := json.Marshal(done)
+		_ = conn.WriteMessage(websocket.TextMessage, doneData)
 	})
 	defer ts.Close()
 
@@ -72,9 +80,10 @@ func TestChatStreaming(t *testing.T) {
 		UserAgent:    "test-agent",
 	}
 
-	client, err := copilot.NewClient("cookie=test", cfg)
+	// Use NewClientFromToken to supply a static access token for testing
+	client, err := copilot.NewClientFromToken("test-access-token", cfg)
 	if err != nil {
-		t.Fatalf("NewClient error: %v", err)
+		t.Fatalf("NewClientFromToken error: %v", err)
 	}
 	defer client.Close()
 

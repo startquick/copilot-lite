@@ -20,12 +20,14 @@ type Config struct {
 
 // CopilotConfig contains Copilot WebSocket client settings.
 type CopilotConfig struct {
-	WSURL                    string `toml:"ws_url"`
-	WSAPIVersion             string `toml:"ws_api_version"`
+	WSURL                     string `toml:"ws_url"`
+	WSAPIVersion              string `toml:"ws_api_version"`
+	AccessToken               string `toml:"access_token"` // legacy override (unused when OAuth is configured)
 	NewConversationPerRequest bool   `toml:"new_conversation_per_request"`
-	PingInterval             int    `toml:"ping_interval"` // seconds
-	ReconnectMax             int    `toml:"reconnect_max"`
-	UserAgent                string `toml:"user_agent"`
+	PingInterval              int    `toml:"ping_interval"` // seconds
+	ReconnectMax              int    `toml:"reconnect_max"`
+	UserAgent                 string `toml:"user_agent"`
+	OAuthRedirectPort         int    `toml:"oauth_redirect_port"` // local port for OAuth2 callback listener
 }
 
 // AppConfig contains application settings.

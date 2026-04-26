@@ -105,6 +105,7 @@ func (c *wsClient) Chat(ctx context.Context, req *ChatRequest) (<-chan StreamEve
 			}
 
 			var ev wsEvent
+			slog.Debug("copilot: raw ws message", "raw", string(msg))
 			if err := json.Unmarshal(msg, &ev); err != nil {
 				slog.Debug("copilot: failed to parse ws message", "raw", string(msg), "error", err)
 				continue
@@ -112,6 +113,7 @@ func (c *wsClient) Chat(ctx context.Context, req *ChatRequest) (<-chan StreamEve
 
 			switch ev.Event {
 			case "appendText":
+				slog.Debug("copilot: appendText", "text", ev.Text, "len", len(ev.Text))
 				if ev.Text != "" {
 					out <- StreamEvent{Text: ev.Text}
 				}

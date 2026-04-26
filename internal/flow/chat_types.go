@@ -37,8 +37,9 @@ type TokenServicer interface {
 	MarkCircuitSuccess(id uint)
 }
 
-// CopilotClientFactory creates copilot.Client instances for a given cookie bundle.
-type CopilotClientFactory func(cookieBundle string) copilot.Client
+// CopilotClientFactory creates copilot.Client instances for a given token record.
+// Receiving the full store.Token allows callers to inject per-token auth providers.
+type CopilotClientFactory func(tok *store.Token) copilot.Client
 
 // XAIClientFactory is an alias kept for httpapi compatibility.
 // In CopilotPi, this is always a CopilotClientFactory.
